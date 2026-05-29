@@ -1,0 +1,16 @@
+Troubleshooting Guide — RelayAI Support
+
+Issue: Dashboard not loading
+Fix: Clear browser cache and cookies. Try a different browser. Check status.relayai.com for outages.
+
+Issue: Emails not being received
+Fix: Check spam/junk folder. Whitelist noreply@relayai.com. Verify your email address in Settings > Profile.
+
+Issue: API returning 401 Unauthorized
+Fix: Your API key may be expired. Regenerate it in Settings > API Keys.
+
+Issue: Slow response times
+Fix: Check your internet connection. If the issue persists, check status.relayai.com or submit a ticket.
+
+Issue: Integration not syncing
+Fix: Disconnect and reconnect the integration in Settings > Integrations. Ensure the third-party service is authorized.

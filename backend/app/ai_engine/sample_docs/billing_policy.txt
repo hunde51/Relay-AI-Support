@@ -1,0 +1,9 @@
+Billing Policy — RelayAI Support
+
+1. All plans are billed monthly or annually in advance.
+2. Refunds are available within 7 days of initial purchase only.
+3. Downgrades take effect at the next billing cycle.
+4. Failed payments result in a 3-day grace period before account suspension.
+5. Annual plans receive a 20% discount compared to monthly billing.
+6. Invoices are sent automatically to the billing email on file.
+7. To update payment method, go to Settings > Billing > Payment Method.

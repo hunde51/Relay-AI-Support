@@ -1,0 +1,14 @@
+Q: How do I reset my password?
+A: Go to the login page and click "Forgot Password". Enter your email and you'll receive a reset link within 5 minutes.
+
+Q: How do I cancel my subscription?
+A: Go to Settings > Billing > Cancel Subscription. Your access continues until the end of the billing period.
+
+Q: How do I contact support?
+A: You can submit a ticket through this platform or email support@relayai.com. Response time is within 24 hours.
+
+Q: How do I upgrade my plan?
+A: Go to Settings > Billing > Upgrade Plan. Changes take effect immediately and you'll be charged a prorated amount.
+
+Q: Can I export my data?
+A: Yes. Go to Settings > Data > Export. You'll receive a download link via email within 1 hour.
