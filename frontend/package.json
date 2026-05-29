@@ -1,5 +1,6 @@
 {
-  "name": "tanstack_start_ts",
+  "name": "auto-ai-devops",
+  "author": "Hunde Tesfa",
   "private": true,
   "sideEffects": false,
   "type": "module",

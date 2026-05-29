@@ -7,26 +7,67 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+
+# Python
+venv
+__pycache__
+*.py[cod]
+*.pyo
+.pytest_cache
+*.egg-info
+.eggs
+
+# Build output
 dist
 dist-ssr
 .output
 .vinxi
 .tanstack/**
 .nitro
+build
+out
+
+# Environment variables
+.env
+.env.*
+!.env.example
 *.local
 
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
 
+# Lock files
+package-lock.json
+bun.lock
+yarn.lock
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# LibreOffice
+*.odt
+*.ods
+*.odp
+.~lock.*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Temp files
+*.tmp
+*.temp
