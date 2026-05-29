@@ -1,0 +1,35 @@
+from enum import Enum
+from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional
+
+
+class TicketStatus(str, Enum):
+    open = "open"
+    in_progress = "in_progress"
+    resolved = "resolved"
+    closed = "closed"
+
+
+class TicketPriority(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+    critical = "critical"
+
+
+class TicketCategory(str, Enum):
+    billing = "billing"
+    technical = "technical"
+    general = "general"
+    account = "account"
+
+
+class Ticket(BaseModel):
+    id: str
+    title: str
+    message: str
+    status: TicketStatus = TicketStatus.open
+    priority: TicketPriority = TicketPriority.medium
+    category: TicketCategory = TicketCategory.general
+    created_at: datetime = datetime.utcnow()
