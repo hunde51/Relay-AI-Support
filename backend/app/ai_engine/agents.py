@@ -1,10 +1,10 @@
 from app.ai_engine.state import AgentState
 from app.ai_engine.llm import get_llm
 from app.services.rag_service import search_knowledge
+from app.core.ws_manager import manager
 
 
 async def triage_agent(state: AgentState) -> AgentState:
-    """Classifies the ticket into an issue type."""
     llm = get_llm()
     prompt = f"""Classify this support ticket into one of: billing, technical, account, general.
 Reply with only the category word.
@@ -15,31 +15,23 @@ Message: {state['message']}"""
     result = await llm.ainvoke(prompt)
     issue_type = result.content.strip().lower()
 
-    return {
-        **state,
-        "issue_type": issue_type,
-        "steps": state.get("steps", []) + [
-            {"step": "triage", "message": f"Classified as: {issue_type}", "confidence": 1.0}
-        ],
-    }
+    step = {"step": "triage", "message": f"Classified as: {issue_type}", "confidence": 1.0}
+    await manager.stream_ai_step(state["ticket_id"], step)
+
+    return {**state, "issue_type": issue_type, "steps": state.get("steps", []) + [step]}
 
 
 async def rag_agent(state: AgentState) -> AgentState:
-    """Fetches relevant knowledge base results."""
     query = f"{state['title']} {state['message']}"
     results = await search_knowledge(query, top_k=3)
 
-    return {
-        **state,
-        "knowledge_results": results,
-        "steps": state["steps"] + [
-            {"step": "rag_retrieve", "message": f"Found {len(results)} relevant knowledge chunks", "confidence": 1.0}
-        ],
-    }
+    step = {"step": "rag_retrieve", "message": f"Found {len(results)} relevant knowledge chunks", "confidence": 1.0}
+    await manager.stream_ai_step(state["ticket_id"], step)
+
+    return {**state, "knowledge_results": results, "steps": state["steps"] + [step]}
 
 
 async def decision_agent(state: AgentState) -> AgentState:
-    """Decides: resolve, escalate, or ask for more info."""
     llm = get_llm()
     knowledge_text = "\n".join([r["content"] for r in state["knowledge_results"]])
 
@@ -60,22 +52,13 @@ Reply with JSON only:
     match = re.search(r'\{.*\}', raw, re.DOTALL)
     parsed = json.loads(match.group()) if match else {"decision": "escalate", "confidence": 0.5, "reason": "parse error"}
 
-    return {
-        **state,
-        "decision": parsed["decision"],
-        "steps": state["steps"] + [
-            {
-                "step": "decision",
-                "message": parsed["reason"],
-                "confidence": parsed["confidence"],
-                "decision": parsed["decision"],
-            }
-        ],
-    }
+    step = {"step": "decision", "message": parsed["reason"], "confidence": parsed["confidence"], "decision": parsed["decision"]}
+    await manager.stream_ai_step(state["ticket_id"], step)
+
+    return {**state, "decision": parsed["decision"], "steps": state["steps"] + [step]}
 
 
 async def action_agent(state: AgentState) -> AgentState:
-    """Executes the decision — generates the final response."""
     llm = get_llm()
     knowledge_text = "\n".join([r["content"] for r in state["knowledge_results"]])
 
@@ -94,10 +77,8 @@ Ticket: {state['title']} — {state['message']}"""
 
     result = await llm.ainvoke(prompt)
 
-    return {
-        **state,
-        "response": result.content.strip(),
-        "steps": state["steps"] + [
-            {"step": "action", "message": f"Action taken: {state['decision']}", "response_preview": result.content[:100]}
-        ],
-    }
+    step = {"step": "action", "message": f"Action taken: {state['decision']}", "response_preview": result.content[:100]}
+    await manager.stream_ai_step(state["ticket_id"], step)
+
+    return {**state, "response": result.content.strip(), "steps": state["steps"] + [step]}
+
