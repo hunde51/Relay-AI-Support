@@ -4,7 +4,7 @@ import { Ticket, Inbox, CheckCircle2, Timer } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { TicketsFeed } from "@/components/dashboard/TicketsFeed";
 import { AIActivityPanel } from "@/components/ai-panel/AIActivityPanel";
-import { tickets } from "@/data/mockTickets";
+import { api, type ApiTicket } from "@/lib/api/client";
 import { kpis } from "@/data/mockAnalytics";
 
 export const Route = createFileRoute("/")({
@@ -19,9 +19,13 @@ export const Route = createFileRoute("/")({
 
 function Dashboard() {
   const [loading, setLoading] = useState(true);
+  const [tickets, setTickets] = useState<ApiTicket[]>([]);
+
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 650);
-    return () => clearTimeout(t);
+    api.tickets.list().then((data) => {
+      setTickets(data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, []);
 
   return (
@@ -32,9 +36,9 @@ function Dashboard() {
       </header>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard index={0} label="Total tickets" value={kpis.totalTickets} delta="+8.2%" trend="up" loading={loading} icon={<Ticket className="h-4 w-4" />} />
-        <KpiCard index={1} label="Open tickets" value={kpis.openTickets} delta="-3.1%" trend="down" loading={loading} icon={<Inbox className="h-4 w-4" />} />
-        <KpiCard index={2} label="Resolved today" value={kpis.resolvedToday} delta="+12%" trend="up" loading={loading} icon={<CheckCircle2 className="h-4 w-4" />} />
+        <KpiCard index={0} label="Total tickets" value={tickets.length} delta="+8.2%" trend="up" loading={loading} icon={<Ticket className="h-4 w-4" />} />
+        <KpiCard index={1} label="Open tickets" value={tickets.filter(t => t.status === "open").length} delta="-3.1%" trend="down" loading={loading} icon={<Inbox className="h-4 w-4" />} />
+        <KpiCard index={2} label="Resolved today" value={tickets.filter(t => t.status === "resolved").length} delta="+12%" trend="up" loading={loading} icon={<CheckCircle2 className="h-4 w-4" />} />
         <KpiCard index={3} label="Avg response" value={kpis.avgResponseMin} decimals={1} suffix="min" delta="-0.4 min" trend="up" loading={loading} icon={<Timer className="h-4 w-4" />} />
       </section>
 

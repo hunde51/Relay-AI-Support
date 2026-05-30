@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TicketsFeed } from "@/components/dashboard/TicketsFeed";
-import { tickets } from "@/data/mockTickets";
+import { api, type ApiTicket } from "@/lib/api/client";
 import { Filter, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,16 @@ type Filter = (typeof statuses)[number];
 
 function TicketsPage() {
   const [filter, setFilter] = useState<Filter>("all");
+  const [tickets, setTickets] = useState<ApiTicket[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.tickets.list().then((data) => {
+      setTickets(data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
   const filtered = filter === "all" ? tickets : tickets.filter((t) => t.status === filter);
 
   return (

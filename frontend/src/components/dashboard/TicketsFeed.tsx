@@ -2,7 +2,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "@tanstack/react-router";
 import { CheckCircle2, ArrowUpRight, Eye } from "lucide-react";
 import { useState } from "react";
-import type { Ticket } from "@/data/mockTickets";
+import type { ApiTicket } from "@/lib/api/client";
+import { api } from "@/lib/api/client";
 import { CategoryBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
 
 function relTime(iso: string) {
@@ -13,17 +14,20 @@ function relTime(iso: string) {
   return `${Math.round(diff / 86400)}d ago`;
 }
 
-export function TicketsFeed({ tickets, loading }: { tickets: Ticket[]; loading?: boolean }) {
-  const [rows, setRows] = useState(tickets);
+export function TicketsFeed({ tickets, loading }: { tickets: ApiTicket[]; loading?: boolean }) {
+  const [rows, setRows] = useState<ApiTicket[]>(tickets);
 
-  const advance = (id: string) => {
-    setRows((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? { ...t, status: t.status === "open" ? "in_progress" : t.status === "in_progress" ? "resolved" : "resolved" }
-          : t,
-      ),
-    );
+  // sync when parent tickets prop changes
+  if (tickets !== rows && tickets.length !== rows.length) setRows(tickets);
+
+  const advance = async (id: string) => {
+    const ticket = rows.find((t) => t.id === id);
+    if (!ticket) return;
+    const next =
+      ticket.status === "open" ? "in_progress" :
+      ticket.status === "in_progress" ? "resolved" : "resolved";
+    const updated = await api.tickets.update(id, { status: next });
+    setRows((prev) => prev.map((t) => (t.id === id ? updated : t)));
   };
 
   if (loading) {
@@ -60,13 +64,13 @@ export function TicketsFeed({ tickets, loading }: { tickets: Ticket[]; loading?:
             >
               <div className="font-mono text-xs text-muted-foreground self-center">{t.id}</div>
               <div className="min-w-0 self-center">
-                <div className="truncate font-medium">{t.subject}</div>
-                <div className="truncate text-xs text-muted-foreground">{t.customer}</div>
+                <div className="truncate font-medium">{t.title}</div>
+                <div className="truncate text-xs text-muted-foreground">{t.category}</div>
               </div>
-              <div className="self-center"><CategoryBadge category={t.category} /></div>
-              <div className="self-center"><PriorityBadge priority={t.priority} /></div>
-              <div className="self-center"><StatusBadge status={t.status} /></div>
-              <div className="self-center text-xs text-muted-foreground">{relTime(t.updatedAt)}</div>
+              <div className="self-center"><CategoryBadge category={t.category as any} /></div>
+              <div className="self-center"><PriorityBadge priority={t.priority as any} /></div>
+              <div className="self-center"><StatusBadge status={t.status as any} /></div>
+              <div className="self-center text-xs text-muted-foreground">{relTime(t.created_at)}</div>
               <div className="self-center flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                 <Link
                   to="/tickets/$id"
