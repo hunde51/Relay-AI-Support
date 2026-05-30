@@ -1,9 +1,11 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { ArrowLeft, CheckCircle2, ArrowUpRight, Sparkles, Send } from "lucide-react";
-import { useEffect, useState } from "react";
-import { getTicket, type Ticket } from "@/data/mockTickets";
+import { useState } from "react";
+import { api, type ApiTicket } from "@/lib/api/client";
 import { CategoryBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
+import { AIActivityPanel } from "@/components/ai-panel/AIActivityPanel";
+import { useAIStream } from "@/hooks/useAIStream";
 
 export const Route = createFileRoute("/tickets/$id")({
   head: ({ params }) => ({
@@ -12,9 +14,9 @@ export const Route = createFileRoute("/tickets/$id")({
       { name: "description", content: `Ticket detail for ${params.id}` },
     ],
   }),
-  loader: ({ params }) => {
-    const t = getTicket(params.id);
-    if (!t) throw notFound();
+  loader: async ({ params }) => {
+    const t = await api.tickets.get(params.id);
+    if (!t || (t as any).detail) throw notFound();
     return t;
   },
   notFoundComponent: () => (
@@ -30,12 +32,17 @@ export const Route = createFileRoute("/tickets/$id")({
 });
 
 function TicketDetail() {
-  const t = Route.useLoaderData() as Ticket;
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    const x = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(x);
-  }, []);
+  const t = Route.useLoaderData() as ApiTicket;
+  const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const { steps, connected } = useAIStream(activeTicketId);
+
+  const runAgent = async () => {
+    setProcessing(true);
+    setActiveTicketId(t.id); // opens WebSocket
+    await api.agent.process(t.id);
+    setProcessing(false);
+  };
 
   return (
     <div className="px-4 md:px-8 py-6 md:py-8 max-w-[1600px] mx-auto">
@@ -54,48 +61,19 @@ function TicketDetail() {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="font-mono">{t.id}</span>
               <span>·</span>
-              <CategoryBadge category={t.category} />
-              <PriorityBadge priority={t.priority} />
-              <span className="ml-auto"><StatusBadge status={t.status} /></span>
+              <CategoryBadge category={t.category as any} />
+              <PriorityBadge priority={t.priority as any} />
+              <span className="ml-auto"><StatusBadge status={t.status as any} /></span>
             </div>
-            <h1 className="mt-2 text-xl font-semibold tracking-tight">{t.subject}</h1>
-            <div className="mt-1 text-sm text-muted-foreground">
-              {t.customer} · <span className="text-foreground/70">{t.email}</span>
-            </div>
+            <h1 className="mt-2 text-xl font-semibold tracking-tight">{t.title}</h1>
+            <div className="mt-1 text-sm text-muted-foreground">{t.message}</div>
           </div>
 
-          <div className="p-5 space-y-4">
-            {loading ? (
-              <>
-                <div className="h-16 rounded-lg shimmer" />
-                <div className="h-16 rounded-lg shimmer w-3/4 ml-auto" />
-              </>
-            ) : (
-              t.messages.map((m, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.08 }}
-                  className={`flex ${m.from === "customer" ? "justify-start" : "justify-end"}`}
-                >
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed border ${
-                      m.from === "customer"
-                        ? "bg-muted/40 border-border"
-                        : m.from === "ai"
-                          ? "bg-primary/10 border-primary/30 text-foreground"
-                          : "bg-info/10 border-info/30"
-                    }`}
-                  >
-                    <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {m.from === "customer" ? t.customer : m.from === "ai" ? "AI Agent" : "Support agent"}
-                    </div>
-                    {m.body}
-                  </div>
-                </motion.div>
-              ))
-            )}
+          <div className="p-5">
+            <div className="rounded-2xl px-4 py-3 text-sm leading-relaxed border bg-muted/40 border-border">
+              <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Customer</div>
+              {t.message}
+            </div>
           </div>
 
           <div className="border-t border-border p-3 flex items-center gap-2">
@@ -115,58 +93,39 @@ function TicketDetail() {
           transition={{ duration: 0.3 }}
           className="space-y-4"
         >
-          <div className="rounded-xl border border-border bg-card p-5">
+          {/* AI Action buttons */}
+          <div className="rounded-xl border border-border bg-card p-5 space-y-3">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
-              <Sparkles className="h-3.5 w-3.5" /> AI Analysis
+              <Sparkles className="h-3.5 w-3.5" /> AI Actions
             </div>
-            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-              Customer reports a duplicate charge for the May invoice. Stripe confirms two identical charges within 12 seconds, consistent with a client-side retry. Policy permits auto-refund without manager approval.
-            </p>
-
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Confidence</span>
-                <span className="font-mono">92%</span>
-              </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: "92%" }}
-                  transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
-                  className="h-full rounded-full bg-gradient-to-r from-primary to-info"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-lg border border-border bg-background/60 p-3">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Suggested reply</div>
-              <p className="text-sm leading-relaxed">
-                Hi {t.customer.split(" ")[0]}, thanks for the heads-up. We've confirmed a duplicate charge on your May invoice and issued a full refund for the duplicate. You'll see it on your statement within 5–10 business days. Sorry for the inconvenience!
-              </p>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-success/15 text-success border border-success/30 px-3 py-2 text-xs font-medium transition-colors hover:bg-success/20">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={runAgent}
+                disabled={processing}
+                className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary px-3 py-2 text-xs font-medium hover:bg-primary/20 disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {processing ? "AI thinking…" : "Run AI Agent"}
+              </button>
+              <button className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-success/15 text-success border border-success/30 px-3 py-2 text-xs font-medium hover:bg-success/20">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Resolve
               </button>
-              <button className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-warning/15 text-warning border border-warning/30 px-3 py-2 text-xs font-medium transition-colors hover:bg-warning/20">
+              <button className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-warning/15 text-warning border border-warning/30 px-3 py-2 text-xs font-medium hover:bg-warning/20">
                 <ArrowUpRight className="h-3.5 w-3.5" /> Escalate
-              </button>
-              <button
-                disabled
-                className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground cursor-not-allowed"
-              >
-                <Sparkles className="h-3.5 w-3.5" /> Ask AI (coming soon)
               </button>
             </div>
           </div>
 
+          {/* Live AI reasoning panel */}
+          <AIActivityPanel liveSteps={activeTicketId ? steps : undefined} connected={connected} />
+
+          {/* Metadata */}
           <div className="rounded-xl border border-border bg-card p-5 text-xs space-y-2">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Metadata</div>
-            <Row k="Created" v={new Date(t.createdAt).toLocaleString()} />
-            <Row k="Updated" v={new Date(t.updatedAt).toLocaleString()} />
-            {t.assignee && <Row k="Assignee" v={t.assignee} />}
-            <Row k="Channel" v="Email" />
+            <Row k="Created" v={new Date(t.created_at).toLocaleString()} />
+            <Row k="Status" v={t.status} />
+            <Row k="Priority" v={t.priority} />
+            <Row k="Category" v={t.category} />
           </div>
         </motion.aside>
       </div>

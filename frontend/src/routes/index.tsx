@@ -5,7 +5,6 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { TicketsFeed } from "@/components/dashboard/TicketsFeed";
 import { AIActivityPanel } from "@/components/ai-panel/AIActivityPanel";
 import { api, type ApiTicket } from "@/lib/api/client";
-import { kpis } from "@/data/mockAnalytics";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -39,7 +38,7 @@ function Dashboard() {
         <KpiCard index={0} label="Total tickets" value={tickets.length} delta="+8.2%" trend="up" loading={loading} icon={<Ticket className="h-4 w-4" />} />
         <KpiCard index={1} label="Open tickets" value={tickets.filter(t => t.status === "open").length} delta="-3.1%" trend="down" loading={loading} icon={<Inbox className="h-4 w-4" />} />
         <KpiCard index={2} label="Resolved today" value={tickets.filter(t => t.status === "resolved").length} delta="+12%" trend="up" loading={loading} icon={<CheckCircle2 className="h-4 w-4" />} />
-        <KpiCard index={3} label="Avg response" value={kpis.avgResponseMin} decimals={1} suffix="min" delta="-0.4 min" trend="up" loading={loading} icon={<Timer className="h-4 w-4" />} />
+        <KpiCard index={3} label="Avg response" value="—" delta="" trend="up" loading={loading} icon={<Timer className="h-4 w-4" />} />
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
