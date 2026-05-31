@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
 from app.db.database import get_db
-from app.db.models import CustomerORM, TicketORM
+from app.db.models import CustomerORM, TicketORM, TicketEventORM
 from app.db.seed import DEFAULT_ORG_ID
 
 router = APIRouter(prefix="/customers", tags=["customers"])
@@ -72,7 +72,34 @@ async def get_customer_tickets(customer_id: str, db: AsyncSession = Depends(get_
     ]
 
 
-async def _get_or_404(db: AsyncSession, customer_id: str) -> CustomerORM:
+@router.get("/{customer_id}/timeline")
+async def get_customer_timeline(customer_id: str, db: AsyncSession = Depends(get_db)):
+    await _get_or_404(db, customer_id)
+    # All ticket events for all tickets belonging to this customer
+    result = await db.execute(
+        select(TicketEventORM, TicketORM.title)
+        .join(TicketORM, TicketEventORM.ticket_id == TicketORM.id)
+        .where(TicketORM.customer_id == customer_id)
+        .order_by(TicketEventORM.created_at.desc())
+        .limit(50)
+    )
+    rows = result.all()
+    return [
+        {
+            "event_id": row.TicketEventORM.id,
+            "ticket_id": row.TicketEventORM.ticket_id,
+            "ticket_title": row.title,
+            "event_type": row.TicketEventORM.event_type,
+            "actor_type": row.TicketEventORM.actor_type,
+            "old_value": row.TicketEventORM.old_value,
+            "new_value": row.TicketEventORM.new_value,
+            "created_at": row.TicketEventORM.created_at.isoformat(),
+        }
+        for row in rows
+    ]
+
+
+
     result = await db.execute(select(CustomerORM).where(CustomerORM.id == customer_id))
     c = result.scalar_one_or_none()
     if not c:

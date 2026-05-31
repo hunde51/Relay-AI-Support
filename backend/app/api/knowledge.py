@@ -158,7 +158,22 @@ async def search_knowledge(body: SearchRequest):
     return {"query": body.query, "results": results}
 
 
-# ── Legacy ingest (sample docs) ───────────────────────────────────────────────
+@router.get("/chunks/{chunk_id}")
+async def get_chunk(chunk_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(KnowledgeChunkORM).where(KnowledgeChunkORM.id == chunk_id))
+    chunk = result.scalar_one_or_none()
+    if not chunk:
+        raise HTTPException(status_code=404, detail="Chunk not found")
+    return {
+        "id": chunk.id, "document_id": chunk.document_id,
+        "chunk_index": chunk.chunk_index, "content": chunk.content,
+        "content_hash": chunk.content_hash, "token_count": chunk.token_count,
+        "embedding_id": chunk.embedding_id, "metadata": chunk.metadata_json,
+        "created_at": chunk.created_at,
+    }
+
+
+
 
 @router.post("/ingest-docs")
 async def ingest_sample_docs():

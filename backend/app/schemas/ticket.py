@@ -21,7 +21,12 @@ class TicketFilters(BaseModel):
     status: Optional[TicketStatus] = None
     priority: Optional[TicketPriority] = None
     category: Optional[TicketCategory] = None
+    assignee_id: Optional[str] = None
+    customer_id: Optional[str] = None
     search: Optional[str] = None
+    created_from: Optional[datetime] = None
+    created_to: Optional[datetime] = None
+    sort: Optional[str] = None  # "created_at_asc" | "created_at_desc" | "updated_at_desc"
     page: int = 1
     page_size: int = 25
 

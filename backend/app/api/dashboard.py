@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import UTC, datetime, timedelta
 
 from app.db.database import get_db
-from app.db.models import TicketORM, TicketEventORM
+from app.db.models import TicketORM, TicketEventORM, AIRunORM
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -40,7 +40,44 @@ async def get_summary(db: AsyncSession = Depends(get_db)):
     }
 
 
-@router.get("/recent-activity")
+@router.get("/ticket-volume")
+async def get_ticket_volume(db: AsyncSession = Depends(get_db)):
+    """Daily ticket creation count for the last 14 days."""
+    cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=14)
+    result = await db.execute(
+        select(
+            func.date(TicketORM.created_at).label("day"),
+            func.count().label("count"),
+        )
+        .where(TicketORM.created_at >= cutoff)
+        .group_by(func.date(TicketORM.created_at))
+        .order_by(func.date(TicketORM.created_at))
+    )
+    return [{"day": str(row.day), "count": row.count} for row in result.all()]
+
+
+@router.get("/ai-performance")
+async def get_ai_performance(db: AsyncSession = Depends(get_db)):
+    total_runs = (await db.execute(select(func.count()).select_from(AIRunORM))).scalar_one()
+    completed = (await db.execute(
+        select(func.count()).select_from(AIRunORM).where(AIRunORM.status == "completed")
+    )).scalar_one()
+    failed = (await db.execute(
+        select(func.count()).select_from(AIRunORM).where(AIRunORM.status == "failed")
+    )).scalar_one()
+    auto_resolved = (await db.execute(
+        select(func.count()).select_from(AIRunORM).where(AIRunORM.final_decision == "resolve")
+    )).scalar_one()
+    return {
+        "total_runs": total_runs,
+        "completed": completed,
+        "failed": failed,
+        "auto_resolved": auto_resolved,
+        "auto_resolution_rate": round(auto_resolved / completed, 4) if completed else 0.0,
+    }
+
+
+
 async def get_recent_activity(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(TicketEventORM, TicketORM.title)

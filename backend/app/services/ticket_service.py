@@ -43,7 +43,14 @@ async def escalate_ticket(db: AsyncSession, ticket_id: str):
     return ticket
 
 
-async def add_message(db: AsyncSession, ticket_id: str, data: MessageCreate):
+async def assign_ticket(db: AsyncSession, ticket_id: str, assignee_id: str):
+    ticket = await ticket_repository.assign(db, ticket_id, assignee_id)
+    if ticket:
+        await manager.broadcast_ticket({"event": "ticket_assigned", "ticket_id": ticket.id, "assignee_id": assignee_id})
+    return ticket
+
+
+
     return await ticket_repository.add_message(db, ticket_id, data)
 
 

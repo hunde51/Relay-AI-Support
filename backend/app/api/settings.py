@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
 from app.db.database import get_db
-from app.db.models import OrganizationORM, OrganizationSettingsORM, NotificationSettingsORM
+from app.db.models import OrganizationORM, OrganizationSettingsORM, NotificationSettingsORM, IntegrationORM
 from app.db.seed import DEFAULT_ORG_ID
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -91,6 +91,38 @@ async def patch_notification_settings(data: NotificationPatch, db: AsyncSession 
         "slack_alerts_enabled": s.slack_alerts_enabled,
         "sms_incidents_enabled": s.sms_incidents_enabled,
     }
+
+
+class IntegrationPatch(BaseModel):
+    status: Optional[str] = None
+    config: Optional[dict] = None
+
+
+@router.get("/integrations")
+async def get_integrations(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(IntegrationORM).where(IntegrationORM.organization_id == DEFAULT_ORG_ID)
+    )
+    integrations = result.scalars().all()
+    return [
+        {"id": i.id, "provider": i.provider, "status": i.status, "config": i.config}
+        for i in integrations
+    ]
+
+
+@router.patch("/integrations/{integration_id}")
+async def patch_integration(
+    integration_id: str, data: IntegrationPatch, db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(IntegrationORM).where(IntegrationORM.id == integration_id))
+    integration = result.scalar_one_or_none()
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(integration, field, value)
+    await db.commit()
+    await db.refresh(integration)
+    return {"id": integration.id, "provider": integration.provider, "status": integration.status, "config": integration.config}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

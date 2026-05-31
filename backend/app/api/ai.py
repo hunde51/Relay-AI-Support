@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.db.database import get_db
+from app.db.models import AIRunORM, AIToolCallORM
 from app.services import ai_service
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -30,7 +32,40 @@ async def list_runs(ticket_id: str, db: AsyncSession = Depends(get_db)):
     ]
 
 
-@router.get("/runs/{run_id}/steps")
+@router.get("/runs/{run_id}")
+async def get_run(run_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(AIRunORM).where(AIRunORM.id == run_id))
+    run = result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(status_code=404, detail="AI run not found")
+    return {
+        "id": run.id, "ticket_id": run.ticket_id, "status": run.status,
+        "final_decision": run.final_decision, "confidence": run.confidence,
+        "risk_level": run.risk_level, "started_at": run.started_at,
+        "completed_at": run.completed_at, "error": run.error,
+        "created_at": run.created_at,
+    }
+
+
+@router.get("/runs/{run_id}/tool-calls")
+async def get_tool_calls(run_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(AIToolCallORM)
+        .where(AIToolCallORM.ai_run_id == run_id)
+        .order_by(AIToolCallORM.created_at)
+    )
+    calls = result.scalars().all()
+    return [
+        {
+            "id": c.id, "tool_name": c.tool_name, "arguments": c.arguments,
+            "result": c.result, "status": c.status, "error": c.error,
+            "created_at": c.created_at,
+        }
+        for c in calls
+    ]
+
+
+
 async def get_steps(run_id: str, db: AsyncSession = Depends(get_db)):
     steps = await ai_service.get_run_steps(db, run_id)
     return [

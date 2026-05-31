@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional
+from datetime import datetime
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_db
 from app.schemas.ticket import (
@@ -23,12 +25,22 @@ async def list_tickets(
     status: Optional[TicketStatus] = Query(None),
     priority: Optional[TicketPriority] = Query(None),
     category: Optional[TicketCategory] = Query(None),
+    assignee_id: Optional[str] = Query(None),
+    customer_id: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    created_from: Optional[datetime] = Query(None),
+    created_to: Optional[datetime] = Query(None),
+    sort: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    filters = TicketFilters(status=status, priority=priority, category=category, search=search, page=page, page_size=page_size)
+    filters = TicketFilters(
+        status=status, priority=priority, category=category,
+        assignee_id=assignee_id, customer_id=customer_id,
+        search=search, created_from=created_from, created_to=created_to,
+        sort=sort, page=page, page_size=page_size,
+    )
     items, total, pages = await ticket_service.get_all_tickets(db, filters)
     return PaginatedTickets(items=items, total=total, page=page, page_size=page_size, pages=pages)
 
@@ -73,7 +85,19 @@ async def get_timeline(ticket_id: str, db: AsyncSession = Depends(get_db)):
     return await ticket_service.get_timeline(db, ticket_id)
 
 
-@router.post("/{ticket_id}/resolve", response_model=TicketResponse)
+class AssignRequest(BaseModel):
+    assignee_id: str
+
+
+@router.post("/{ticket_id}/assign", response_model=TicketResponse)
+async def assign_ticket(ticket_id: str, data: AssignRequest, db: AsyncSession = Depends(get_db)):
+    ticket = await ticket_service.assign_ticket(db, ticket_id, data.assignee_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return ticket
+
+
+
 async def resolve_ticket(ticket_id: str, db: AsyncSession = Depends(get_db)):
     ticket = await ticket_service.resolve_ticket(db, ticket_id)
     if not ticket:

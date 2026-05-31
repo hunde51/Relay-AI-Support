@@ -48,6 +48,14 @@ async def get_all(db: AsyncSession, filters: TicketFilters):
         q = q.where(TicketORM.priority == filters.priority)
     if filters.category:
         q = q.where(TicketORM.category == filters.category)
+    if filters.assignee_id:
+        q = q.where(TicketORM.assignee_id == filters.assignee_id)
+    if filters.customer_id:
+        q = q.where(TicketORM.customer_id == filters.customer_id)
+    if filters.created_from:
+        q = q.where(TicketORM.created_at >= filters.created_from)
+    if filters.created_to:
+        q = q.where(TicketORM.created_at <= filters.created_to)
     if filters.search:
         term = f"%{filters.search}%"
         q = q.where(TicketORM.title.ilike(term) | TicketORM.message.ilike(term))
@@ -55,8 +63,15 @@ async def get_all(db: AsyncSession, filters: TicketFilters):
     total_result = await db.execute(select(func.count()).select_from(q.subquery()))
     total = total_result.scalar_one()
 
+    if filters.sort == "created_at_asc":
+        q = q.order_by(TicketORM.created_at.asc())
+    elif filters.sort == "updated_at_desc":
+        q = q.order_by(TicketORM.updated_at.desc())
+    else:
+        q = q.order_by(TicketORM.created_at.desc())
+
     offset = (filters.page - 1) * filters.page_size
-    q = q.order_by(TicketORM.created_at.desc()).offset(offset).limit(filters.page_size)
+    q = q.offset(offset).limit(filters.page_size)
     result = await db.execute(q)
     items = result.scalars().all()
 
@@ -113,7 +128,26 @@ async def set_status(db: AsyncSession, ticket_id: str, status: str, event_type: 
     return ticket
 
 
-async def add_message(db: AsyncSession, ticket_id: str, data: MessageCreate) -> TicketMessageORM | None:
+async def assign(db: AsyncSession, ticket_id: str, assignee_id: str) -> TicketORM | None:
+    ticket = await get_by_id(db, ticket_id)
+    if not ticket:
+        return None
+    old = ticket.assignee_id
+    ticket.assignee_id = assignee_id
+    ticket.updated_at = _utc_now()
+    db.add(TicketEventORM(
+        ticket_id=ticket.id,
+        actor_type="agent",
+        event_type="assigned",
+        old_value=old,
+        new_value=assignee_id,
+    ))
+    await db.commit()
+    await db.refresh(ticket)
+    return ticket
+
+
+
     ticket = await get_by_id(db, ticket_id)
     if not ticket:
         return None
