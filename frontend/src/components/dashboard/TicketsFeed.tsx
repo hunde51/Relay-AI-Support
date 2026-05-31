@@ -14,7 +14,7 @@ function relTime(iso: string) {
   return `${Math.round(diff / 86400)}d ago`;
 }
 
-export function TicketsFeed({ tickets, loading }: { tickets: ApiTicket[]; loading?: boolean }) {
+export function TicketsFeed({ tickets, loading, onUpdate }: { tickets: ApiTicket[]; loading?: boolean; onUpdate?: () => void }) {
   const [rows, setRows] = useState<ApiTicket[]>(tickets);
 
   useEffect(() => {
@@ -32,6 +32,7 @@ export function TicketsFeed({ tickets, loading }: { tickets: ApiTicket[]; loadin
           : "resolved";
     const updated = await api.tickets.update(id, { status: next });
     setRows((prev) => prev.map((t) => (t.id === id ? updated : t)));
+    onUpdate?.();
   };
 
   if (loading) {

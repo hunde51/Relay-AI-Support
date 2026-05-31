@@ -26,7 +26,7 @@ export function CommandPalette({
   useEffect(() => {
     api.tickets
       .list()
-      .then(setTickets)
+      .then((data) => setTickets(data.items))
       .catch(() => {});
   }, []);
 
