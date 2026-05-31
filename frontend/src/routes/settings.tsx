@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { api, type WorkspaceSettings, type AISettings, type NotificationSettings } from "@/lib/api/client";
+import { useState } from "react";
+import {
+  useWorkspaceSettings, useAISettings, useNotificationSettings,
+  usePatchWorkspace, usePatchAISettings, usePatchNotifications,
+} from "@/lib/queries";
+import type { WorkspaceSettings, AISettings, NotificationSettings } from "@/lib/api/client";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -13,37 +17,13 @@ export const Route = createFileRoute("/settings")({
 });
 
 function Settings() {
-  const [ws, setWs] = useState<WorkspaceSettings | null>(null);
-  const [ai, setAi] = useState<AISettings | null>(null);
-  const [notif, setNotif] = useState<NotificationSettings | null>(null);
-  const [saving, setSaving] = useState<string | null>(null);
+  const { data: ws, isLoading: wsLoading } = useWorkspaceSettings();
+  const { data: ai, isLoading: aiLoading } = useAISettings();
+  const { data: notif, isLoading: notifLoading } = useNotificationSettings();
 
-  useEffect(() => {
-    api.settings.workspace().then(setWs).catch(() => null);
-    api.settings.ai().then(setAi).catch(() => null);
-    api.settings.notifications().then(setNotif).catch(() => null);
-  }, []);
-
-  const patchWs = async (field: keyof WorkspaceSettings, value: string) => {
-    setSaving(field);
-    const updated = await api.settings.patchWorkspace({ [field]: value }).catch(() => null);
-    if (updated) setWs(updated);
-    setSaving(null);
-  };
-
-  const patchAi = async (field: keyof AISettings, value: boolean | string) => {
-    setSaving(field);
-    const updated = await api.settings.patchAI({ [field]: value }).catch(() => null);
-    if (updated) setAi(updated);
-    setSaving(null);
-  };
-
-  const patchNotif = async (field: keyof NotificationSettings, value: boolean) => {
-    setSaving(field);
-    const updated = await api.settings.patchNotifications({ [field]: value }).catch(() => null);
-    if (updated) setNotif(updated);
-    setSaving(null);
-  };
+  const patchWs = usePatchWorkspace();
+  const patchAi = usePatchAISettings();
+  const patchNotif = usePatchNotifications();
 
   return (
     <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 max-w-[900px] mx-auto">
@@ -53,48 +33,41 @@ function Settings() {
       </header>
 
       <Section title="Workspace">
-        {ws ? (
+        {wsLoading || !ws ? <SkeletonRows n={3} /> : (
           <>
-            <EditableField label="Organization" value={ws.name} saving={saving === "name"}
-              onSave={(v) => patchWs("name", v)} />
-            <EditableField label="Plan" value={ws.plan} saving={saving === "plan"}
-              onSave={(v) => patchWs("plan", v)} />
-            <EditableField label="Region" value={ws.region} saving={saving === "region"}
-              onSave={(v) => patchWs("region", v)} />
+            <EditableField label="Organization" value={ws.name} saving={patchWs.isPending}
+              onSave={(v) => patchWs.mutate({ name: v })} />
+            <EditableField label="Plan" value={ws.plan} saving={patchWs.isPending}
+              onSave={(v) => patchWs.mutate({ plan: v })} />
+            <EditableField label="Region" value={ws.region} saving={patchWs.isPending}
+              onSave={(v) => patchWs.mutate({ region: v })} />
           </>
-        ) : (
-          <SkeletonRows n={3} />
         )}
       </Section>
 
       <Section title="AI agents">
-        {ai ? (
+        {aiLoading || !ai ? <SkeletonRows n={3} /> : (
           <>
-            <Toggle label="AI enabled" checked={ai.ai_enabled} saving={saving === "ai_enabled"}
-              onChange={(v) => patchAi("ai_enabled", v)} />
-            <Toggle label="Auto-resolve" checked={ai.auto_resolve_enabled} saving={saving === "auto_resolve_enabled"}
-              onChange={(v) => patchAi("auto_resolve_enabled", v)} />
-            <EditableField label="Human approval threshold" value={ai.human_approval_threshold}
-              saving={saving === "human_approval_threshold"}
-              onSave={(v) => patchAi("human_approval_threshold", v)} />
+            <Toggle label="AI enabled" checked={ai.ai_enabled} saving={patchAi.isPending}
+              onChange={(v) => patchAi.mutate({ ai_enabled: v })} />
+            <Toggle label="Auto-resolve" checked={ai.auto_resolve_enabled} saving={patchAi.isPending}
+              onChange={(v) => patchAi.mutate({ auto_resolve_enabled: v })} />
+            <EditableField label="Approval threshold" value={ai.human_approval_threshold} saving={patchAi.isPending}
+              onSave={(v) => patchAi.mutate({ human_approval_threshold: v })} />
           </>
-        ) : (
-          <SkeletonRows n={3} />
         )}
       </Section>
 
       <Section title="Notifications">
-        {notif ? (
+        {notifLoading || !notif ? <SkeletonRows n={3} /> : (
           <>
-            <Toggle label="Email digest" checked={notif.email_digest_enabled} saving={saving === "email_digest_enabled"}
-              onChange={(v) => patchNotif("email_digest_enabled", v)} />
-            <Toggle label="Slack alerts" checked={notif.slack_alerts_enabled} saving={saving === "slack_alerts_enabled"}
-              onChange={(v) => patchNotif("slack_alerts_enabled", v)} />
-            <Toggle label="SMS on incidents" checked={notif.sms_incidents_enabled} saving={saving === "sms_incidents_enabled"}
-              onChange={(v) => patchNotif("sms_incidents_enabled", v)} />
+            <Toggle label="Email digest" checked={notif.email_digest_enabled} saving={patchNotif.isPending}
+              onChange={(v) => patchNotif.mutate({ email_digest_enabled: v })} />
+            <Toggle label="Slack alerts" checked={notif.slack_alerts_enabled} saving={patchNotif.isPending}
+              onChange={(v) => patchNotif.mutate({ slack_alerts_enabled: v })} />
+            <Toggle label="SMS on incidents" checked={notif.sms_incidents_enabled} saving={patchNotif.isPending}
+              onChange={(v) => patchNotif.mutate({ sms_incidents_enabled: v })} />
           </>
-        ) : (
-          <SkeletonRows n={3} />
         )}
       </Section>
     </div>
@@ -115,7 +88,6 @@ function EditableField({ label, value, onSave, saving }: {
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
-
   const commit = () => { onSave(draft); setEditing(false); };
 
   return (
@@ -131,8 +103,7 @@ function EditableField({ label, value, onSave, saving }: {
         </div>
       ) : (
         <button onClick={() => { setDraft(value); setEditing(true); }}
-          className="font-mono text-right hover:text-primary transition-colors truncate max-w-[200px]"
-          title="Click to edit">
+          className="font-mono text-right hover:text-primary transition-colors truncate max-w-[200px]" title="Click to edit">
           {saving ? <span className="text-muted-foreground">saving…</span> : value}
         </button>
       )}
