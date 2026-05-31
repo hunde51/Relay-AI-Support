@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 const statusStyles: Record<TicketStatus, string> = {
   open: "bg-info/15 text-info border-info/30",
   in_progress: "bg-warning/15 text-warning border-warning/30",
+  waiting_on_customer: "bg-chart-3/15 text-chart-3 border-chart-3/30",
   resolved: "bg-success/15 text-success border-success/30",
   closed: "bg-muted/60 text-muted-foreground border-border",
 };
@@ -12,6 +13,7 @@ const statusStyles: Record<TicketStatus, string> = {
 const statusLabel: Record<TicketStatus, string> = {
   open: "Open",
   in_progress: "In Progress",
+  waiting_on_customer: "Waiting",
   resolved: "Resolved",
   closed: "Closed",
 };

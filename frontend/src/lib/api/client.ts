@@ -25,7 +25,7 @@ async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise
   return body as T;
 }
 
-export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
+export type TicketStatus = "open" | "in_progress" | "waiting_on_customer" | "resolved" | "closed";
 export type TicketPriority = "low" | "medium" | "high" | "critical";
 export type TicketCategory = "billing" | "technical" | "general" | "account";
 

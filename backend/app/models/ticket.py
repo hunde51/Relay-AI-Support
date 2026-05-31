@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class TicketStatus(str, Enum):
     open = "open"
     in_progress = "in_progress"
+    waiting_on_customer = "waiting_on_customer"
     resolved = "resolved"
     closed = "closed"
 

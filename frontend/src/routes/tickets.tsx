@@ -15,7 +15,7 @@ export const Route = createFileRoute("/tickets")({
   component: TicketsPage,
 });
 
-const statuses = ["all", "open", "in_progress", "resolved"] as const;
+const statuses = ["all", "open", "in_progress", "waiting_on_customer", "resolved", "closed"] as const;
 type Filter = (typeof statuses)[number];
 
 function TicketsPage() {
