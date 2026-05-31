@@ -23,7 +23,7 @@ Message: {state['message']}"""
 
 async def rag_agent(state: AgentState) -> AgentState:
     query = f"{state['title']} {state['message']}"
-    results = await search_knowledge(query, top_k=3)
+    results = await search_knowledge(query, top_k=3, organization_id=state.get("organization_id"))
 
     step = {"step": "rag_retrieve", "message": f"Found {len(results)} relevant knowledge chunks", "confidence": 1.0}
     await manager.stream_ai_step(state["ticket_id"], step)
@@ -61,6 +61,7 @@ Reply with JSON only:
 async def action_agent(state: AgentState) -> AgentState:
     llm = get_llm()
     knowledge_text = "\n".join([r["content"] for r in state["knowledge_results"]])
+    citations = [r["chunk_id"] for r in state["knowledge_results"] if r.get("chunk_id")]
 
     if state["decision"] == "resolve":
         prompt = f"""Write a helpful, concise support reply to resolve this ticket.
@@ -80,5 +81,5 @@ Ticket: {state['title']} — {state['message']}"""
     step = {"step": "action", "message": f"Action taken: {state['decision']}", "response_preview": result.content[:100]}
     await manager.stream_ai_step(state["ticket_id"], step)
 
-    return {**state, "response": result.content.strip(), "steps": state["steps"] + [step]}
+    return {**state, "response": result.content.strip(), "citations": citations, "steps": state["steps"] + [step]}
 

@@ -31,6 +31,7 @@ async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
 
     initial_state: AgentState = {
         "ticket_id": ticket_id,
+        "organization_id": DEFAULT_ORG_ID,
         "title": ticket.title,
         "message": ticket.message,
         "category": ticket.category,
@@ -39,6 +40,7 @@ async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
         "knowledge_results": [],
         "decision": "escalate",
         "response": "",
+        "citations": [],
         "steps": [],
     }
 
@@ -66,7 +68,7 @@ async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
             ai_run_id=run_id,
             ticket_id=ticket_id,
             action_type=decision,
-            payload={"response": result["response"]},
+            payload={"response": result["response"], "citations": result.get("citations", [])},
             risk_level=risk_level,
             requires_approval=requires_approval,
         )

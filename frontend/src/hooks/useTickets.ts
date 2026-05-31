@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api, type ApiTicket, type TicketCategory, type TicketPriority, type TicketStatus } from "@/lib/api/client";
 
 export type TicketFilters = {
@@ -11,30 +11,18 @@ export type TicketFilters = {
 };
 
 export function useTickets(filters?: TicketFilters) {
-  const [tickets, setTickets] = useState<ApiTicket[]>([]);
-  const [total, setTotal] = useState(0);
-  const [pages, setPages] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["tickets", filters ?? {}],
+    queryFn: () => api.tickets.list(filters),
+    staleTime: 15_000,
+  });
 
-  const fetch = () => {
-    setLoading(true);
-    setError(null);
-    api.tickets
-      .list(filters)
-      .then((data) => {
-        setTickets(data.items);
-        setTotal(data.total);
-        setPages(data.pages);
-      })
-      .catch(() => setError("Failed to load tickets. Check the backend is running."))
-      .finally(() => setLoading(false));
+  return {
+    tickets: data?.items ?? [] as ApiTicket[],
+    total: data?.total ?? 0,
+    pages: data?.pages ?? 0,
+    loading: isLoading,
+    error: error ? (error as Error).message : null,
+    refetch: () => refetch(),
   };
-
-  useEffect(() => {
-    fetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters?.status, filters?.priority, filters?.category, filters?.search, filters?.page]);
-
-  return { tickets, total, pages, loading, error, refetch: fetch };
 }

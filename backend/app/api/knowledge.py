@@ -129,8 +129,19 @@ async def ingest_document(document_id: str, db: AsyncSession = Depends(get_db)):
     doc.status = "ingesting"
     await db.flush()
 
+    # Resolve source name for citation metadata
+    source_name = ""
+    if doc.source_id:
+        src_result = await db.execute(
+            select(KnowledgeSourceORM).where(KnowledgeSourceORM.id == doc.source_id)
+        )
+        src = src_result.scalar_one_or_none()
+        source_name = src.name if src else ""
+
     try:
-        result = await rag_service.ingest_document_file(doc.storage_path, doc.title, doc.id)
+        result = await rag_service.ingest_document_file(
+            db, doc.storage_path, doc.title, doc.id, DEFAULT_ORG_ID, source_name
+        )
         doc.status = "ingested"
         job.status = "completed"
         job.metadata_json = result
@@ -154,8 +165,29 @@ async def delete_document(document_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/search")
 async def search_knowledge(body: SearchRequest):
-    results = await rag_service.search_knowledge(body.query, body.top_k)
+    results = await rag_service.search_knowledge(
+        body.query, body.top_k, organization_id=DEFAULT_ORG_ID
+    )
     return {"query": body.query, "results": results}
+
+
+@router.get("/documents/{document_id}/chunks")
+async def list_chunks(document_id: str, db: AsyncSession = Depends(get_db)):
+    await _get_doc_or_404(db, document_id)
+    result = await db.execute(
+        select(KnowledgeChunkORM)
+        .where(KnowledgeChunkORM.document_id == document_id)
+        .order_by(KnowledgeChunkORM.chunk_index)
+    )
+    chunks = result.scalars().all()
+    return [
+        {
+            "id": c.id, "chunk_index": c.chunk_index, "content": c.content,
+            "token_count": c.token_count, "content_hash": c.content_hash,
+            "created_at": c.created_at,
+        }
+        for c in chunks
+    ]
 
 
 @router.get("/chunks/{chunk_id}")
