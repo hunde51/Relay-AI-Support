@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { WS_BASE } from "@/lib/api/client";
 
 export type LiveStep = {
   step: "triage" | "rag_retrieve" | "decision" | "action";
@@ -17,7 +18,7 @@ export function useAIStream(ticketId: string | null) {
     if (!ticketId) return;
     setSteps([]);
 
-    const ws = new WebSocket(`ws://localhost:8000/ws/ai-stream/${ticketId}`);
+    const ws = new WebSocket(`${WS_BASE}/ws/ai-stream/${ticketId}`);
     wsRef.current = ws;
 
     ws.onopen = () => setConnected(true);

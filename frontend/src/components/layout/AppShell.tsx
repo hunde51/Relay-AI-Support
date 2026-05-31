@@ -15,7 +15,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
-      const inField = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      const inField =
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();

@@ -1,8 +1,17 @@
 import { motion } from "framer-motion";
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  LineChart, Line,
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  LineChart,
+  Line,
 } from "recharts";
 
 // Static placeholder data — will be replaced with real API in Phase 10
@@ -23,19 +32,30 @@ const resolutionTrend = [
   { day: "Sun", opened: 5, resolved: 7 },
 ];
 const aiAutoResolveRate = [
-  { week: "W1", rate: 42 }, { week: "W2", rate: 47 }, { week: "W3", rate: 51 },
-  { week: "W4", rate: 55 }, { week: "W5", rate: 58 }, { week: "W6", rate: 63 },
-  { week: "W7", rate: 68 }, { week: "W8", rate: 71 },
+  { week: "W1", rate: 42 },
+  { week: "W2", rate: 47 },
+  { week: "W3", rate: 51 },
+  { week: "W4", rate: 55 },
+  { week: "W5", rate: 58 },
+  { week: "W6", rate: 63 },
+  { week: "W7", rate: 68 },
+  { week: "W8", rate: 71 },
 ];
 const peakHours = Array.from({ length: 7 }, (_, d) =>
   Array.from({ length: 24 }, (_, h) => ({
-    day: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][d],
+    day: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d],
     hour: h,
     v: Math.random() * 0.9,
-  }))
+  })),
 ).flat();
 
-const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
+const COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+];
 
 const tooltipStyle = {
   backgroundColor: "var(--popover)",
@@ -71,7 +91,10 @@ export function CategoryPie() {
       <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
         {categoryDistribution.map((c, i) => (
           <div key={c.key} className="flex items-center gap-2 text-muted-foreground">
-            <span className="h-2 w-2 rounded-sm" style={{ background: COLORS[i % COLORS.length] }} />
+            <span
+              className="h-2 w-2 rounded-sm"
+              style={{ background: COLORS[i % COLORS.length] }}
+            />
             <span>{c.name}</span>
             <span className="ml-auto font-mono text-foreground">{c.value}</span>
           </div>
@@ -97,11 +120,29 @@ export function ResolutionTrendChart() {
             </linearGradient>
           </defs>
           <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="day" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+          <XAxis
+            dataKey="day"
+            stroke="var(--muted-foreground)"
+            fontSize={11}
+            tickLine={false}
+            axisLine={false}
+          />
           <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
           <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: "var(--border)" }} />
-          <Area type="monotone" dataKey="opened" stroke="var(--chart-1)" strokeWidth={2} fill="url(#g-opened)" />
-          <Area type="monotone" dataKey="resolved" stroke="var(--chart-2)" strokeWidth={2} fill="url(#g-resolved)" />
+          <Area
+            type="monotone"
+            dataKey="opened"
+            stroke="var(--chart-1)"
+            strokeWidth={2}
+            fill="url(#g-opened)"
+          />
+          <Area
+            type="monotone"
+            dataKey="resolved"
+            stroke="var(--chart-2)"
+            strokeWidth={2}
+            fill="url(#g-resolved)"
+          />
         </AreaChart>
       </ResponsiveContainer>
     </ChartCard>
@@ -114,10 +155,29 @@ export function AutoResolveChart() {
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={aiAutoResolveRate} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="week" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
-          <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} unit="%" />
+          <XAxis
+            dataKey="week"
+            stroke="var(--muted-foreground)"
+            fontSize={11}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            stroke="var(--muted-foreground)"
+            fontSize={11}
+            tickLine={false}
+            axisLine={false}
+            unit="%"
+          />
           <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: "var(--border)" }} />
-          <Line type="monotone" dataKey="rate" stroke="var(--primary)" strokeWidth={2.5} dot={{ r: 3, fill: "var(--primary)" }} activeDot={{ r: 5 }} />
+          <Line
+            type="monotone"
+            dataKey="rate"
+            stroke="var(--primary)"
+            strokeWidth={2.5}
+            dot={{ r: 3, fill: "var(--primary)" }}
+            activeDot={{ r: 5 }}
+          />
         </LineChart>
       </ResponsiveContainer>
     </ChartCard>
@@ -135,7 +195,9 @@ export function PeakHoursHeatmap() {
         <div className="min-w-[520px]">
           <div className="flex gap-1 pl-10 pb-1 text-[10px] text-muted-foreground">
             {hours.map((h) => (
-              <div key={h} className="w-4 text-center">{h % 6 === 0 ? h : ""}</div>
+              <div key={h} className="w-4 text-center">
+                {h % 6 === 0 ? h : ""}
+              </div>
             ))}
           </div>
           {days.map((d) => (
@@ -149,7 +211,9 @@ export function PeakHoursHeatmap() {
                       key={h}
                       title={`${d} ${h}:00 — ${(v * 100).toFixed(0)}%`}
                       className="h-4 w-4 rounded-sm transition-transform hover:scale-125 hover:ring-1 hover:ring-primary"
-                      style={{ background: `color-mix(in oklab, var(--primary) ${Math.round(v * 90)}%, var(--muted))` }}
+                      style={{
+                        background: `color-mix(in oklab, var(--primary) ${Math.round(v * 90)}%, var(--muted))`,
+                      }}
                     />
                   );
                 })}
@@ -162,7 +226,15 @@ export function PeakHoursHeatmap() {
   );
 }
 
-function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function ChartCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}

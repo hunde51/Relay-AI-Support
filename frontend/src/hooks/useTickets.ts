@@ -12,13 +12,19 @@ export function useTickets() {
   const fetch = () => {
     setLoading(true);
     setError(null);
-    api.tickets.list()
-      .then((data) => { cache = data; setTickets(data); })
+    api.tickets
+      .list()
+      .then((data) => {
+        cache = data;
+        setTickets(data);
+      })
       .catch(() => setError("Failed to load tickets. Check the backend is running."))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetch(); }, []);
+  useEffect(() => {
+    fetch();
+  }, []);
 
   return { tickets, loading, error, refetch: fetch };
 }

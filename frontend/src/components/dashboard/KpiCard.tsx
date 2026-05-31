@@ -32,7 +32,17 @@ function useCountUp(target: number, duration = 900, decimals = 0) {
   return decimals ? v.toFixed(decimals) : Math.round(v).toLocaleString();
 }
 
-export function KpiCard({ label, value, suffix, delta, trend = "up", icon, loading, decimals = 0, index = 0 }: KpiCardProps) {
+export function KpiCard({
+  label,
+  value,
+  suffix,
+  delta,
+  trend = "up",
+  icon,
+  loading,
+  decimals = 0,
+  index = 0,
+}: KpiCardProps) {
   const isString = typeof value === "string";
   const display = useCountUp(loading || isString ? 0 : (value as number), 900, decimals);
 
@@ -45,7 +55,9 @@ export function KpiCard({ label, value, suffix, delta, trend = "up", icon, loadi
       className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/30"
     >
       <div className="flex items-start justify-between">
-        <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {label}
+        </div>
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
           {icon}
         </div>
@@ -55,7 +67,9 @@ export function KpiCard({ label, value, suffix, delta, trend = "up", icon, loadi
           <div className="h-8 w-24 rounded shimmer" />
         ) : (
           <>
-          <div className="text-3xl font-semibold tracking-tight">{isString ? value : display}</div>
+            <div className="text-3xl font-semibold tracking-tight">
+              {isString ? value : display}
+            </div>
             {suffix && <div className="text-sm text-muted-foreground">{suffix}</div>}
           </>
         )}

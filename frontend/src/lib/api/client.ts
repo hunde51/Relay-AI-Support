@@ -1,56 +1,81 @@
-const BASE = "http://localhost:8000";
+const BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+
+export const WS_BASE = import.meta.env.VITE_WS_BASE_URL ?? "ws://localhost:8000";
+
+export class ApiError extends Error {
+  status: number;
+  body: unknown;
+
+  constructor(status: number, body: unknown) {
+    super(`API request failed with status ${status}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+  const response = await fetch(input, init);
+  const body = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new ApiError(response.status, body);
+  }
+
+  return body as T;
+}
+
+export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
+export type TicketPriority = "low" | "medium" | "high" | "critical";
+export type TicketCategory = "billing" | "technical" | "general" | "account";
 
 export type ApiTicket = {
   id: string;
   title: string;
   message: string;
-  status: string;
-  priority: string;
-  category: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  category: TicketCategory;
   created_at: string;
 };
 
 export type TicketCreate = {
   title: string;
   message: string;
-  priority?: string;
-  category?: string;
+  priority?: TicketPriority;
+  category?: TicketCategory;
 };
 
 export type TicketUpdate = {
-  status?: string;
-  priority?: string;
-  category?: string;
+  status?: TicketStatus;
+  priority?: TicketPriority;
+  category?: TicketCategory;
 };
 
 export const api = {
   tickets: {
-    list: (): Promise<ApiTicket[]> =>
-      fetch(`${BASE}/tickets`).then((r) => r.json()),
+    list: (): Promise<ApiTicket[]> => request<ApiTicket[]>(`${BASE}/tickets`),
 
-    get: (id: string): Promise<ApiTicket> =>
-      fetch(`${BASE}/tickets/${id}`).then((r) => r.json()),
+    get: (id: string): Promise<ApiTicket> => request<ApiTicket>(`${BASE}/tickets/${id}`),
 
     create: (data: TicketCreate): Promise<ApiTicket> =>
-      fetch(`${BASE}/tickets`, {
+      request<ApiTicket>(`${BASE}/tickets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      }).then((r) => r.json()),
+      }),
 
     update: (id: string, data: TicketUpdate): Promise<ApiTicket> =>
-      fetch(`${BASE}/tickets/${id}`, {
+      request<ApiTicket>(`${BASE}/tickets/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      }).then((r) => r.json()),
+      }),
   },
 
   agent: {
-    process: (ticketId: string) =>
-      fetch(`${BASE}/agent/process/${ticketId}`, { method: "POST" }).then((r) => r.json()),
+    process: (ticketId: string) => request(`${BASE}/agent/process/${ticketId}`, { method: "POST" }),
 
-    logs: (ticketId: string) =>
-      fetch(`${BASE}/agent/logs/${ticketId}`).then((r) => r.json()),
+    logs: (ticketId: string) => request(`${BASE}/agent/logs/${ticketId}`),
   },
 };

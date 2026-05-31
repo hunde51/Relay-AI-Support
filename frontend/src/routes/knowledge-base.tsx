@@ -25,24 +25,34 @@ function KB() {
     <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 max-w-[1200px] mx-auto">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Knowledge base</h1>
-        <p className="text-sm text-muted-foreground">Source of truth for AI retrieval and agent answers.</p>
+        <p className="text-sm text-muted-foreground">
+          Source of truth for AI retrieval and agent answers.
+        </p>
       </header>
 
       <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
         <Search className="h-4 w-4 text-muted-foreground" />
-        <input className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" placeholder="Search articles…" />
+        <input
+          className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          placeholder="Search articles…"
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {articles.map((a) => (
-          <div key={a.title} className="group rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30">
+          <div
+            key={a.title}
+            className="group rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30"
+          >
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <BookOpen className="h-4 w-4" />
               </div>
               <div className="min-w-0">
                 <div className="font-medium truncate">{a.title}</div>
-                <div className="text-xs text-muted-foreground">{a.category} · {a.views.toLocaleString()} views</div>
+                <div className="text-xs text-muted-foreground">
+                  {a.category} · {a.views.toLocaleString()} views
+                </div>
               </div>
             </div>
           </div>

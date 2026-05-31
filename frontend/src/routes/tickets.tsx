@@ -28,10 +28,16 @@ function TicketsPage() {
       <header className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Tickets</h1>
-          <p className="text-sm text-muted-foreground">Manage and triage incoming support requests.</p>
+          <p className="text-sm text-muted-foreground">
+            Manage and triage incoming support requests.
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={refetch} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-accent" title="Refresh">
+          <button
+            onClick={refetch}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-accent"
+            title="Refresh"
+          >
             <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
           <button className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-transform active:scale-95">
@@ -44,7 +50,9 @@ function TicketsPage() {
       {error && (
         <div className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
-          <button onClick={refetch} className="text-xs underline">Retry</button>
+          <button onClick={refetch} className="text-xs underline">
+            Retry
+          </button>
         </div>
       )}
 

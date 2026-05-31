@@ -27,7 +27,9 @@ export function Sidebar() {
 
       <nav className="flex-1 px-3 py-4 space-y-1">
         {nav.map((item) => {
-          const active = item.exact ? path === item.to : path === item.to || path.startsWith(item.to + "/");
+          const active = item.exact
+            ? path === item.to
+            : path === item.to || path.startsWith(item.to + "/");
           const Icon = item.icon;
           return (
             <Link
@@ -54,8 +56,7 @@ export function Sidebar() {
         <div className="rounded-lg bg-sidebar-accent/50 p-3 text-xs text-muted-foreground">
           <div className="font-medium text-sidebar-foreground mb-1">AI assist online</div>
           <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-            4 agents active
+            <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />4 agents active
           </div>
         </div>
       </div>

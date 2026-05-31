@@ -12,13 +12,22 @@ const shortcuts: { keys: string[]; label: string; to?: string }[] = [
   { keys: ["Esc"], label: "Close panel" },
 ];
 
-export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+export function CommandPalette({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [tickets, setTickets] = useState<ApiTicket[]>([]);
 
   useEffect(() => {
-    api.tickets.list().then(setTickets).catch(() => {});
+    api.tickets
+      .list()
+      .then(setTickets)
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -34,9 +43,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   }, [open, onOpenChange]);
 
   const filtered = tickets
-    .filter((t) =>
-      [t.id, t.title, t.category].join(" ").toLowerCase().includes(q.toLowerCase()),
-    )
+    .filter((t) => [t.id, t.title, t.category].join(" ").toLowerCase().includes(q.toLowerCase()))
     .slice(0, 6);
 
   return (
@@ -95,7 +102,9 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
                   ))}
                 </div>
               ) : (
-                <div className="px-2 py-6 text-center text-sm text-muted-foreground">No results</div>
+                <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                  No results
+                </div>
               )}
 
               <div className="mt-2 border-t border-border pt-2">

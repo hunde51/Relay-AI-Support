@@ -1,8 +1,8 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "@tanstack/react-router";
 import { CheckCircle2, ArrowUpRight, Eye } from "lucide-react";
-import { useState } from "react";
-import type { ApiTicket } from "@/lib/api/client";
+import { useEffect, useState } from "react";
+import type { ApiTicket, TicketStatus } from "@/lib/api/client";
 import { api } from "@/lib/api/client";
 import { CategoryBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
 
@@ -17,15 +17,19 @@ function relTime(iso: string) {
 export function TicketsFeed({ tickets, loading }: { tickets: ApiTicket[]; loading?: boolean }) {
   const [rows, setRows] = useState<ApiTicket[]>(tickets);
 
-  // sync when parent tickets prop changes
-  if (tickets !== rows && tickets.length !== rows.length) setRows(tickets);
+  useEffect(() => {
+    setRows(tickets);
+  }, [tickets]);
 
   const advance = async (id: string) => {
     const ticket = rows.find((t) => t.id === id);
     if (!ticket) return;
-    const next =
-      ticket.status === "open" ? "in_progress" :
-      ticket.status === "in_progress" ? "resolved" : "resolved";
+    const next: TicketStatus =
+      ticket.status === "open"
+        ? "in_progress"
+        : ticket.status === "in_progress"
+          ? "resolved"
+          : "resolved";
     const updated = await api.tickets.update(id, { status: next });
     setRows((prev) => prev.map((t) => (t.id === id ? updated : t)));
   };
@@ -67,10 +71,18 @@ export function TicketsFeed({ tickets, loading }: { tickets: ApiTicket[]; loadin
                 <div className="truncate font-medium">{t.title}</div>
                 <div className="truncate text-xs text-muted-foreground">{t.category}</div>
               </div>
-              <div className="self-center"><CategoryBadge category={t.category as any} /></div>
-              <div className="self-center"><PriorityBadge priority={t.priority as any} /></div>
-              <div className="self-center"><StatusBadge status={t.status as any} /></div>
-              <div className="self-center text-xs text-muted-foreground">{relTime(t.created_at)}</div>
+              <div className="self-center">
+                <CategoryBadge category={t.category} />
+              </div>
+              <div className="self-center">
+                <PriorityBadge priority={t.priority} />
+              </div>
+              <div className="self-center">
+                <StatusBadge status={t.status} />
+              </div>
+              <div className="self-center text-xs text-muted-foreground">
+                {relTime(t.created_at)}
+              </div>
               <div className="self-center flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                 <Link
                   to="/tickets/$id"
