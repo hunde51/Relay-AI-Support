@@ -6,7 +6,6 @@ from app.db.models import AIRunORM, AIStepORM, AISuggestedActionORM
 from app.db.seed import DEFAULT_ORG_ID
 from app.ai_engine.graph import agent_graph
 from app.ai_engine.state import AgentState
-from app.core.ws_manager import manager
 from app.repositories import ticket_repository
 
 
@@ -19,6 +18,7 @@ async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
     if not ticket:
         return {"error": "Ticket not found"}
 
+    # Create the AI run record upfront so nodes can reference it
     ai_run = AIRunORM(
         ticket_id=ticket_id,
         organization_id=DEFAULT_ORG_ID,
@@ -27,78 +27,60 @@ async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
     )
     db.add(ai_run)
     await db.flush()
-    run_id = ai_run.id
 
     initial_state: AgentState = {
+        # Required inputs
         "ticket_id": ticket_id,
         "organization_id": DEFAULT_ORG_ID,
+        "ai_run_id": ai_run.id,
+        "db": db,
+        # Ticket fields (refreshed by load_ticket_context node)
         "title": ticket.title,
         "message": ticket.message,
         "category": ticket.category,
         "priority": ticket.priority,
-        "issue_type": "",
+        "customer_id": ticket.customer_id,
+        "assignee_id": ticket.assignee_id,
+        "ticket_context_loaded": False,
+        # Defaults — filled by nodes
+        "classified_category": ticket.category,
+        "intent": "",
+        "confidence": 0.5,
+        "sentiment": "neutral",
+        "urgency": "medium",
+        "sla_risk": False,
         "knowledge_results": [],
+        "has_relevant_knowledge": False,
+        "repeat_issue": False,
+        "recent_escalations": 0,
         "decision": "escalate",
+        "decision_confidence": 0.5,
+        "risk_level": "medium",
+        "decision_reason": "",
         "response": "",
         "citations": [],
+        "validation_valid": True,
+        "validation_issues": [],
+        "escalation_team": "",
+        "escalation_note": "",
+        "suggested_action_id": "",
+        "requires_approval": True,
         "steps": [],
     }
 
     try:
-        result = await agent_graph.ainvoke(initial_state)
-
-        # Persist each step
-        for step_data in result["steps"]:
-            step = AIStepORM(
-                ai_run_id=run_id,
-                step_name=step_data["step"],
-                output=step_data,
-                confidence=str(step_data.get("confidence", "")),
-            )
-            db.add(step)
-
-        # Determine risk level and approval requirement
-        decision = result["decision"]
-        confidence = result["steps"][-1].get("confidence", 0.5) if result["steps"] else 0.5
-        risk_level = "high" if ticket.category in ("billing", "account") else "medium" if confidence < 0.8 else "low"
-        requires_approval = risk_level in ("high", "medium") or confidence < 0.85
-
-        # Persist suggested action
-        action = AISuggestedActionORM(
-            ai_run_id=run_id,
-            ticket_id=ticket_id,
-            action_type=decision,
-            payload={"response": result["response"], "citations": result.get("citations", [])},
-            risk_level=risk_level,
-            requires_approval=requires_approval,
-        )
-        db.add(action)
-
-        ai_run.status = "completed"
-        ai_run.final_decision = decision
-        ai_run.confidence = str(confidence)
-        ai_run.risk_level = risk_level
-        ai_run.completed_at = _utc_now()
-
+        await agent_graph.ainvoke(initial_state)
+        # persist_ai_run node already committed; refresh to get final state
+        await db.refresh(ai_run)
     except Exception as e:
         ai_run.status = "failed"
         ai_run.error = str(e)
         ai_run.completed_at = _utc_now()
-
-    await db.commit()
-    await db.refresh(ai_run)
-
-    # Notify frontend the run is done
-    await manager.broadcast_ticket({
-        "event": "ai_run_completed",
-        "ticket_id": ticket_id,
-        "run_id": run_id,
-        "decision": ai_run.final_decision,
-        "status": ai_run.status,
-    })
+        await db.commit()
+        await db.refresh(ai_run)
 
     return {
-        "run_id": run_id,
+        "run_id": ai_run.id,
         "status": ai_run.status,
         "final_decision": ai_run.final_decision,
         "confidence": ai_run.confidence,
