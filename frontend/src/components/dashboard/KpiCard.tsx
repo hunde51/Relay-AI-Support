@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface KpiCardProps {
   label: string;
-  value: number;
+  value: number | string;
   suffix?: string;
   delta?: string;
   trend?: "up" | "down" | "flat";
@@ -33,7 +33,8 @@ function useCountUp(target: number, duration = 900, decimals = 0) {
 }
 
 export function KpiCard({ label, value, suffix, delta, trend = "up", icon, loading, decimals = 0, index = 0 }: KpiCardProps) {
-  const display = useCountUp(loading ? 0 : value, 900, decimals);
+  const isString = typeof value === "string";
+  const display = useCountUp(loading || isString ? 0 : (value as number), 900, decimals);
 
   return (
     <motion.div
@@ -54,7 +55,7 @@ export function KpiCard({ label, value, suffix, delta, trend = "up", icon, loadi
           <div className="h-8 w-24 rounded shimmer" />
         ) : (
           <>
-            <div className="text-3xl font-semibold tracking-tight">{display}</div>
+          <div className="text-3xl font-semibold tracking-tight">{isString ? value : display}</div>
             {suffix && <div className="text-sm text-muted-foreground">{suffix}</div>}
           </>
         )}

@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import { Ticket, Inbox, CheckCircle2, Timer } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { TicketsFeed } from "@/components/dashboard/TicketsFeed";
 import { AIActivityPanel } from "@/components/ai-panel/AIActivityPanel";
-import { api, type ApiTicket } from "@/lib/api/client";
+import { useTickets } from "@/hooks/useTickets";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -17,15 +16,14 @@ export const Route = createFileRoute("/")({
 });
 
 function Dashboard() {
-  const [loading, setLoading] = useState(true);
-  const [tickets, setTickets] = useState<ApiTicket[]>([]);
+  const { tickets, loading, error, refetch } = useTickets();
 
-  useEffect(() => {
-    api.tickets.list().then((data) => {
-      setTickets(data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
+  if (error) return (
+    <div className="flex flex-col items-center justify-center py-32 gap-3">
+      <p className="text-sm text-destructive">{error}</p>
+      <button onClick={refetch} className="rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-accent">Retry</button>
+    </div>
+  );
 
   return (
     <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 max-w-[1600px] mx-auto">

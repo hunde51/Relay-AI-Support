@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { Search, ArrowRight, Command as CmdIcon } from "lucide-react";
-import { tickets } from "@/data/mockTickets";
+import { api, type ApiTicket } from "@/lib/api/client";
 
 const shortcuts: { keys: string[]; label: string; to?: string }[] = [
   { keys: ["G", "D"], label: "Go to Dashboard", to: "/" },
@@ -15,6 +15,11 @@ const shortcuts: { keys: string[]; label: string; to?: string }[] = [
 export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
+  const [tickets, setTickets] = useState<ApiTicket[]>([]);
+
+  useEffect(() => {
+    api.tickets.list().then(setTickets).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!open) setQ("");
@@ -30,7 +35,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
 
   const filtered = tickets
     .filter((t) =>
-      [t.id, t.customer, t.subject, t.category].join(" ").toLowerCase().includes(q.toLowerCase()),
+      [t.id, t.title, t.category].join(" ").toLowerCase().includes(q.toLowerCase()),
     )
     .slice(0, 6);
 
@@ -83,7 +88,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="font-mono text-xs text-muted-foreground">{t.id}</span>
-                        <span className="truncate">{t.subject}</span>
+                        <span className="truncate">{t.title}</span>
                       </div>
                       <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
                     </button>

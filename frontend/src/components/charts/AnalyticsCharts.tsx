@@ -4,7 +4,36 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   LineChart, Line,
 } from "recharts";
-import { categoryDistribution, resolutionTrend, aiAutoResolveRate, peakHours } from "@/data/mockAnalytics";
+
+// Static placeholder data — will be replaced with real API in Phase 10
+const categoryDistribution = [
+  { key: "billing", name: "Billing", value: 34 },
+  { key: "technical", name: "Technical", value: 28 },
+  { key: "account", name: "Account", value: 19 },
+  { key: "general", name: "General", value: 12 },
+  { key: "feature", name: "Feature", value: 7 },
+];
+const resolutionTrend = [
+  { day: "Mon", opened: 12, resolved: 9 },
+  { day: "Tue", opened: 18, resolved: 14 },
+  { day: "Wed", opened: 15, resolved: 16 },
+  { day: "Thu", opened: 22, resolved: 18 },
+  { day: "Fri", opened: 19, resolved: 21 },
+  { day: "Sat", opened: 8, resolved: 10 },
+  { day: "Sun", opened: 5, resolved: 7 },
+];
+const aiAutoResolveRate = [
+  { week: "W1", rate: 42 }, { week: "W2", rate: 47 }, { week: "W3", rate: 51 },
+  { week: "W4", rate: 55 }, { week: "W5", rate: 58 }, { week: "W6", rate: 63 },
+  { week: "W7", rate: 68 }, { week: "W8", rate: 71 },
+];
+const peakHours = Array.from({ length: 7 }, (_, d) =>
+  Array.from({ length: 24 }, (_, h) => ({
+    day: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][d],
+    hour: h,
+    v: Math.random() * 0.9,
+  }))
+).flat();
 
 const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
 
