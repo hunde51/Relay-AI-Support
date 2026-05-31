@@ -18,6 +18,27 @@ class CustomerCreate(BaseModel):
     external_id: Optional[str] = None
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+async def _get_or_404(db: AsyncSession, customer_id: str) -> CustomerORM:
+    result = await db.execute(select(CustomerORM).where(CustomerORM.id == customer_id))
+    c = result.scalar_one_or_none()
+    if not c:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return c
+
+
+def _fmt(c: CustomerORM) -> dict:
+    return {
+        "id": c.id, "name": c.name, "email": c.email,
+        "company": c.company, "external_id": c.external_id,
+        "organization_id": c.organization_id,
+        "created_at": c.created_at, "updated_at": c.updated_at,
+    }
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
+
 @router.get("")
 async def list_customers(
     search: Optional[str] = Query(None),
@@ -28,8 +49,7 @@ async def list_customers(
         term = f"%{search}%"
         q = q.where(CustomerORM.name.ilike(term) | CustomerORM.email.ilike(term))
     result = await db.execute(q.order_by(CustomerORM.created_at.desc()))
-    customers = result.scalars().all()
-    return [_fmt(c) for c in customers]
+    return [_fmt(c) for c in result.scalars().all()]
 
 
 @router.post("", status_code=201)
@@ -49,8 +69,7 @@ async def create_customer(data: CustomerCreate, db: AsyncSession = Depends(get_d
 
 @router.get("/{customer_id}")
 async def get_customer(customer_id: str, db: AsyncSession = Depends(get_db)):
-    c = await _get_or_404(db, customer_id)
-    return _fmt(c)
+    return _fmt(await _get_or_404(db, customer_id))
 
 
 @router.get("/{customer_id}/tickets")
@@ -61,21 +80,16 @@ async def get_customer_tickets(customer_id: str, db: AsyncSession = Depends(get_
         .where(TicketORM.customer_id == customer_id)
         .order_by(TicketORM.created_at.desc())
     )
-    tickets = result.scalars().all()
     return [
-        {
-            "id": t.id, "title": t.title, "status": t.status,
-            "priority": t.priority, "category": t.category,
-            "created_at": t.created_at,
-        }
-        for t in tickets
+        {"id": t.id, "title": t.title, "status": t.status,
+         "priority": t.priority, "category": t.category, "created_at": t.created_at}
+        for t in result.scalars().all()
     ]
 
 
 @router.get("/{customer_id}/timeline")
 async def get_customer_timeline(customer_id: str, db: AsyncSession = Depends(get_db)):
     await _get_or_404(db, customer_id)
-    # All ticket events for all tickets belonging to this customer
     result = await db.execute(
         select(TicketEventORM, TicketORM.title)
         .join(TicketORM, TicketEventORM.ticket_id == TicketORM.id)
@@ -83,7 +97,6 @@ async def get_customer_timeline(customer_id: str, db: AsyncSession = Depends(get
         .order_by(TicketEventORM.created_at.desc())
         .limit(50)
     )
-    rows = result.all()
     return [
         {
             "event_id": row.TicketEventORM.id,
@@ -95,22 +108,5 @@ async def get_customer_timeline(customer_id: str, db: AsyncSession = Depends(get
             "new_value": row.TicketEventORM.new_value,
             "created_at": row.TicketEventORM.created_at.isoformat(),
         }
-        for row in rows
+        for row in result.all()
     ]
-
-
-
-    result = await db.execute(select(CustomerORM).where(CustomerORM.id == customer_id))
-    c = result.scalar_one_or_none()
-    if not c:
-        raise HTTPException(status_code=404, detail="Customer not found")
-    return c
-
-
-def _fmt(c: CustomerORM) -> dict:
-    return {
-        "id": c.id, "name": c.name, "email": c.email,
-        "company": c.company, "external_id": c.external_id,
-        "organization_id": c.organization_id,
-        "created_at": c.created_at, "updated_at": c.updated_at,
-    }

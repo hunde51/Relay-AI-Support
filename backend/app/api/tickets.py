@@ -97,7 +97,7 @@ async def assign_ticket(ticket_id: str, data: AssignRequest, db: AsyncSession = 
     return ticket
 
 
-
+@router.post("/{ticket_id}/resolve", response_model=TicketResponse)
 async def resolve_ticket(ticket_id: str, db: AsyncSession = Depends(get_db)):
     ticket = await ticket_service.resolve_ticket(db, ticket_id)
     if not ticket:

@@ -147,7 +147,7 @@ async def assign(db: AsyncSession, ticket_id: str, assignee_id: str) -> TicketOR
     return ticket
 
 
-
+async def add_message(db: AsyncSession, ticket_id: str, data: MessageCreate) -> TicketMessageORM | None:
     ticket = await get_by_id(db, ticket_id)
     if not ticket:
         return None

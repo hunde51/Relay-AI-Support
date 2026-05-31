@@ -129,18 +129,38 @@ async def patch_integration(
 
 async def _get_org(db: AsyncSession) -> OrganizationORM:
     result = await db.execute(select(OrganizationORM).where(OrganizationORM.id == DEFAULT_ORG_ID))
-    return result.scalar_one()
+    org = result.scalar_one_or_none()
+    if not org:
+        org = OrganizationORM(id=DEFAULT_ORG_ID, name="RelayAI Support", slug="default")
+        db.add(org)
+        await db.commit()
+        await db.refresh(org)
+    return org
 
 
 async def _get_ai_settings(db: AsyncSession) -> OrganizationSettingsORM:
     result = await db.execute(
         select(OrganizationSettingsORM).where(OrganizationSettingsORM.organization_id == DEFAULT_ORG_ID)
     )
-    return result.scalar_one()
+    s = result.scalar_one_or_none()
+    if not s:
+        await _get_org(db)
+        s = OrganizationSettingsORM(organization_id=DEFAULT_ORG_ID)
+        db.add(s)
+        await db.commit()
+        await db.refresh(s)
+    return s
 
 
 async def _get_notification_settings(db: AsyncSession) -> NotificationSettingsORM:
     result = await db.execute(
         select(NotificationSettingsORM).where(NotificationSettingsORM.organization_id == DEFAULT_ORG_ID)
     )
-    return result.scalar_one()
+    s = result.scalar_one_or_none()
+    if not s:
+        await _get_org(db)
+        s = NotificationSettingsORM(organization_id=DEFAULT_ORG_ID)
+        db.add(s)
+        await db.commit()
+        await db.refresh(s)
+    return s

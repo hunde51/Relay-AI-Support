@@ -50,7 +50,7 @@ async def assign_ticket(db: AsyncSession, ticket_id: str, assignee_id: str):
     return ticket
 
 
-
+async def add_message(db: AsyncSession, ticket_id: str, data: MessageCreate):
     return await ticket_repository.add_message(db, ticket_id, data)
 
 
