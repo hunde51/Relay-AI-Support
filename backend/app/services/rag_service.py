@@ -1,9 +1,8 @@
 from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
 from app.ai_engine.vector_store import get_vector_store
 
-DOCS_DIR = Path(__file__).parent / "sample_docs"
+DOCS_DIR = Path(__file__).parents[1] / "ai_engine" / "sample_docs"
 splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
 
 

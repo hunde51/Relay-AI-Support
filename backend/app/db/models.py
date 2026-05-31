@@ -1,6 +1,10 @@
 from sqlalchemy import Column, String, DateTime
-from datetime import datetime
+from datetime import UTC, datetime
 from app.db.database import Base
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class TicketORM(Base):
@@ -12,4 +16,4 @@ class TicketORM(Base):
     status = Column(String, default="open")
     priority = Column(String, default="medium")
     category = Column(String, default="general")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)

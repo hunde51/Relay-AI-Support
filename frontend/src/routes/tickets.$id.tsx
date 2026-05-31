@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { ArrowLeft, CheckCircle2, ArrowUpRight, Sparkles, Send } from "lucide-react";
 import { useState } from "react";
-import { api, type ApiTicket } from "@/lib/api/client";
+import { ApiError, api, type ApiTicket } from "@/lib/api/client";
 import { CategoryBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
 import { AIActivityPanel } from "@/components/ai-panel/AIActivityPanel";
 import { useAIStream } from "@/hooks/useAIStream";
@@ -15,14 +15,21 @@ export const Route = createFileRoute("/tickets/$id")({
     ],
   }),
   loader: async ({ params }) => {
-    const t = await api.tickets.get(params.id);
-    if (!t || (t as any).detail) throw notFound();
-    return t;
+    try {
+      return await api.tickets.get(params.id);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        throw notFound();
+      }
+      throw error;
+    }
   },
   notFoundComponent: () => (
     <div className="px-8 py-16 text-center">
       <p className="text-sm text-muted-foreground">Ticket not found.</p>
-      <Link to="/tickets" className="text-sm text-primary">Back to tickets</Link>
+      <Link to="/tickets" className="text-sm text-primary">
+        Back to tickets
+      </Link>
     </div>
   ),
   errorComponent: ({ error }) => (
@@ -46,7 +53,10 @@ function TicketDetail() {
 
   return (
     <div className="px-4 md:px-8 py-6 md:py-8 max-w-[1600px] mx-auto">
-      <Link to="/tickets" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4">
+      <Link
+        to="/tickets"
+        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4"
+      >
         <ArrowLeft className="h-3.5 w-3.5" /> Back to tickets
       </Link>
 
@@ -61,9 +71,11 @@ function TicketDetail() {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="font-mono">{t.id}</span>
               <span>·</span>
-              <CategoryBadge category={t.category as any} />
-              <PriorityBadge priority={t.priority as any} />
-              <span className="ml-auto"><StatusBadge status={t.status as any} /></span>
+              <CategoryBadge category={t.category} />
+              <PriorityBadge priority={t.priority} />
+              <span className="ml-auto">
+                <StatusBadge status={t.status} />
+              </span>
             </div>
             <h1 className="mt-2 text-xl font-semibold tracking-tight">{t.title}</h1>
             <div className="mt-1 text-sm text-muted-foreground">{t.message}</div>
@@ -71,7 +83,9 @@ function TicketDetail() {
 
           <div className="p-5">
             <div className="rounded-2xl px-4 py-3 text-sm leading-relaxed border bg-muted/40 border-border">
-              <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Customer</div>
+              <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                Customer
+              </div>
               {t.message}
             </div>
           </div>
@@ -121,7 +135,9 @@ function TicketDetail() {
 
           {/* Metadata */}
           <div className="rounded-xl border border-border bg-card p-5 text-xs space-y-2">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Metadata</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Metadata
+            </div>
             <Row k="Created" v={new Date(t.created_at).toLocaleString()} />
             <Row k="Status" v={t.status} />
             <Row k="Priority" v={t.priority} />

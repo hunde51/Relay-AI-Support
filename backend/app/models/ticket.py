@@ -1,7 +1,6 @@
 from enum import Enum
-from datetime import datetime
-from pydantic import BaseModel
-from typing import Optional
+from datetime import UTC, datetime
+from pydantic import BaseModel, Field
 
 
 class TicketStatus(str, Enum):
@@ -32,4 +31,4 @@ class Ticket(BaseModel):
     status: TicketStatus = TicketStatus.open
     priority: TicketPriority = TicketPriority.medium
     category: TicketCategory = TicketCategory.general
-    created_at: datetime = datetime.utcnow()
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

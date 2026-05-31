@@ -1,9 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from uuid import uuid4
-from datetime import datetime
+from datetime import UTC, datetime
 from app.db.models import TicketORM
 from app.schemas.ticket import TicketCreate, TicketUpdate
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 async def create(db: AsyncSession, data: TicketCreate) -> TicketORM:
@@ -13,7 +17,7 @@ async def create(db: AsyncSession, data: TicketCreate) -> TicketORM:
         message=data.message,
         priority=data.priority,
         category=data.category,
-        created_at=datetime.utcnow(),
+        created_at=utc_now(),
     )
     db.add(ticket)
     await db.commit()
