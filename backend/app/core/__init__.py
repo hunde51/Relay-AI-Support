@@ -1,10 +1,3 @@
-from pydantic_settings import BaseSettings
+from app.core.config import Settings, require_gemini_api_key, settings
 
-class Settings(BaseSettings):
-    DATABASE_URL: str
-    GEMINI_API_KEY: str
-
-    class Config:
-        env_file = ".env"
-
-settings = Settings()
+__all__ = ["Settings", "require_gemini_api_key", "settings"]

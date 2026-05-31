@@ -107,7 +107,8 @@
   * {
     border-color: var(--color-border);
   }
-  html, body {
+  html,
+  body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
@@ -127,12 +128,17 @@
     animation: shimmer-slide 1.6s ease-in-out infinite;
   }
   @keyframes shimmer-slide {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
   }
   .glow-ring {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-primary) 35%, transparent),
-                0 0 24px -6px color-mix(in oklab, var(--color-primary) 45%, transparent);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--color-primary) 35%, transparent),
+      0 0 24px -6px color-mix(in oklab, var(--color-primary) 45%, transparent);
   }
   .card-elevated {
     background-color: var(--color-card);
