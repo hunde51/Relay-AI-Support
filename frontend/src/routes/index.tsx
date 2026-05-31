@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Ticket, Inbox, CheckCircle2, Timer } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { TicketsFeed } from "@/components/dashboard/TicketsFeed";
 import { AIActivityPanel } from "@/components/ai-panel/AIActivityPanel";
 import { useTickets } from "@/hooks/useTickets";
-import { api, type DashboardSummary } from "@/lib/api/client";
+import { api, type DashboardSummary, WS_BASE } from "@/lib/api/client";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -20,9 +20,21 @@ export const Route = createFileRoute("/")({
 function Dashboard() {
   const { tickets, total, loading, error, refetch } = useTickets({ page_size: 25 });
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  const loadSummary = () => api.dashboard.summary().then(setSummary).catch(() => null);
 
   useEffect(() => {
-    api.dashboard.summary().then(setSummary).catch(() => null);
+    loadSummary();
+
+    // WebSocket live updates
+    const ws = new WebSocket(`${WS_BASE}/ws/tickets`);
+    wsRef.current = ws;
+    ws.onmessage = () => {
+      refetch();
+      loadSummary();
+    };
+    return () => ws.close();
   }, []);
 
   if (error)
@@ -59,7 +71,7 @@ function Dashboard() {
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Live ticket feed</h2>
             <div className="text-xs text-muted-foreground">{summary?.total_tickets ?? total} tickets</div>
           </div>
-          <TicketsFeed tickets={tickets} loading={loading} />
+          <TicketsFeed tickets={tickets} loading={loading} onUpdate={refetch} />
         </div>
         <aside className="min-w-0">
           <AIActivityPanel />

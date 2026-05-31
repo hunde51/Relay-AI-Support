@@ -78,6 +78,7 @@ async def get_ai_performance(db: AsyncSession = Depends(get_db)):
 
 
 
+@router.get("/recent-activity")
 async def get_recent_activity(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(TicketEventORM, TicketORM.title)
