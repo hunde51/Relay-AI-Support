@@ -349,6 +349,19 @@ class AIResponseORM(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
 
+class AIToolDefinitionORM(TimestampMixin, Base):
+    __tablename__ = "ai_tool_definitions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: make_id("TDL"))
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    description: Mapped[str | None] = mapped_column(String)
+    signature: Mapped[dict | None] = mapped_column(JSON)
+    tool_type: Mapped[str] = mapped_column(String, default="read", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    __table_args__ = (Index("ix_ai_tool_definitions_name", "name"),)
+
+
 class OrganizationSettingsORM(TimestampMixin, Base):
     __tablename__ = "organization_settings"
 

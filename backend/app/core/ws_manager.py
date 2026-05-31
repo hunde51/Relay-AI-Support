@@ -43,5 +43,10 @@ class ConnectionManager:
         for ws in list(self._ai_clients.get(ticket_id, [])):
             await ws.send_text(json.dumps(step))
 
+    async def stream_tool_call(self, ticket_id: str, call: dict):
+        """Stream tool call events to AI clients for a ticket."""
+        for ws in list(self._ai_clients.get(ticket_id, [])):
+            await ws.send_text(json.dumps({"tool_call": call}))
+
 
 manager = ConnectionManager()

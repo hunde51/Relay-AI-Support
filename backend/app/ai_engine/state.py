@@ -36,6 +36,10 @@ class AgentState(TypedDict):
     knowledge_results: list[dict]   # chunk_id, document_id, source, content, score
     has_relevant_knowledge: bool
 
+    # ── Tool calls/results (Phase 6)
+    tool_calls: list[dict]
+    tool_results: dict
+
     # ── Customer history (check_customer_history) ─────────────────────────
     repeat_issue: bool
     recent_escalations: int

@@ -28,6 +28,7 @@ from app.ai_engine.state import AgentState
 from app.core.ws_manager import manager
 from app.db.models import AIStepORM, TicketORM, TicketMessageORM, CustomerORM, AIRunORM, AISuggestedActionORM
 from app.services.rag_service import search_knowledge
+from app.services.tool_service import invoke_tool
 
 
 def _utc_now():
@@ -164,7 +165,13 @@ Output schema:
 
 async def retrieve_knowledge(state: AgentState) -> AgentState:
     query = f"{state['title']} {state['message']}"
-    results = await search_knowledge(query, top_k=4, organization_id=state["organization_id"])
+    # Use the tool service to perform a knowledge search so the call is persisted and streamed
+    try:
+        res = await invoke_tool(state["db"], state.get("ai_run_id", ""), state.get("ticket_id"), "search_knowledge", {"query": query, "top_k": 4, "organization_id": state.get("organization_id")})
+        results = res.get("results", [])
+    except Exception:
+        # Fallback to direct search if tool invocation fails
+        results = await search_knowledge(query, top_k=4, organization_id=state["organization_id"])
 
     step = await _emit(state, "retrieve_knowledge",
         f"Retrieved {len(results)} chunks, has_relevant_knowledge={bool(results)}")

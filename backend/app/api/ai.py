@@ -8,6 +8,27 @@ from app.services import ai_service
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 
+@router.get("/tools")
+async def list_tools():
+    # Combine runtime registry and DB definitions if available
+    from app.services.tool_service import TOOL_REGISTRY
+    tools = [{"name": k, "type": v.get("type", "read"), "description": ""} for k, v in TOOL_REGISTRY.items()]
+    return tools
+
+
+@router.post("/tools/{tool_name}/invoke")
+async def invoke_tool_api(tool_name: str, payload: dict, db: AsyncSession = Depends(get_db)):
+    # payload: { ai_run_id?, ticket_id?, arguments?, requester_user_id?, confidence? }
+    from app.services.tool_service import invoke_tool
+    ai_run_id = payload.get("ai_run_id")
+    ticket_id = payload.get("ticket_id")
+    arguments = payload.get("arguments")
+    requester_user_id = payload.get("requester_user_id")
+    confidence = payload.get("confidence")
+    result = await invoke_tool(db, ai_run_id, ticket_id, tool_name, arguments=arguments, requester_user_id=requester_user_id, confidence=confidence)
+    return result
+
+
 @router.post("/tickets/{ticket_id}/run")
 async def run_ai(ticket_id: str, db: AsyncSession = Depends(get_db)):
     return await ai_service.run_ai_on_ticket(db, ticket_id)

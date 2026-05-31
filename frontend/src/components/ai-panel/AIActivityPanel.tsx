@@ -4,11 +4,12 @@ import type { LiveStep } from "@/hooks/useAIStream";
 import { cn } from "@/lib/utils";
 
 // Map backend step names → UI
-const kindMap: Record<string, "triage" | "rag" | "decision" | "action"> = {
+const kindMap: Record<string, "triage" | "rag" | "decision" | "action" | "tool"> = {
   triage: "triage",
   rag_retrieve: "rag",
   decision: "decision",
   action: "action",
+  tool_call: "tool",
 };
 
 const iconMap = {
@@ -16,6 +17,7 @@ const iconMap = {
   rag: <BookOpen className="h-3.5 w-3.5" />,
   decision: <GitBranch className="h-3.5 w-3.5" />,
   action: <Rocket className="h-3.5 w-3.5" />,
+  tool: <BookOpen className="h-3.5 w-3.5" />,
 };
 
 const tone = {
@@ -23,6 +25,7 @@ const tone = {
   rag: "text-chart-2 border-chart-2/40 bg-chart-2/10",
   decision: "text-warning border-warning/40 bg-warning/10",
   action: "text-success border-success/40 bg-success/10",
+  tool: "text-muted-foreground border-border/40 bg-background",
 };
 
 const agentName = {
@@ -30,6 +33,7 @@ const agentName = {
   rag: "Knowledge Agent",
   decision: "Decision Agent",
   action: "Action Agent",
+  tool: "Tool",
 };
 
 type Props = {
@@ -46,7 +50,7 @@ export function AIActivityPanel({ liveSteps = [], connected }: Props) {
       title: s.message,
       agent: agentName[kind],
       confidence: s.confidence ?? 1,
-      summary: s.decision ? `Decision: ${s.decision}` : (s.response_preview ?? ""),
+      summary: s.tool ? (s.tool.status === "suggested" ? `Suggested action: ${s.tool.suggested_action_id}` : (s.tool.status === "failed" ? `Error: ${s.tool.error}` : JSON.stringify(s.tool.result ?? {}).slice(0, 80))) : (s.decision ? `Decision: ${s.decision}` : (s.response_preview ?? "")),
     };
   });
 
