@@ -9,8 +9,11 @@ from app.api.agent import router as agent_router
 from app.api.ai import router as ai_router
 from app.api.dashboard import router as dashboard_router
 from app.api.websockets import router as ws_router
+from app.core.middleware import AuthMiddleware
 
 app = FastAPI(title="RelayAI Support API")
+
+app.add_middleware(AuthMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

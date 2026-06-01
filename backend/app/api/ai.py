@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.db.database import get_db
 from app.db.models import AIRunORM, AIToolCallORM
 from app.services import ai_service
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, optional_current_user
 from fastapi import Request
 from app.db.models import AuditLogORM
 from sqlalchemy import select
@@ -38,8 +38,17 @@ async def invoke_tool_api(tool_name: str, payload: dict, db: AsyncSession = Depe
 
 
 @router.post("/tickets/{ticket_id}/run")
-async def run_ai(ticket_id: str, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    # enforce organization scoping by ensuring ticket belongs to user's org is handled in service layer
+async def run_ai(ticket_id: str, db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    # enforce organization scoping when authenticated
+    if current_user:
+        # verify ticket belongs to same org
+        from app.db.models import TicketORM
+        result = await db.execute(select(TicketORM).where(TicketORM.id == ticket_id))
+        ticket = result.scalar_one_or_none()
+        if not ticket:
+            raise HTTPException(status_code=404, detail="Ticket not found")
+        if ticket.organization_id and ticket.organization_id != current_user.get("organization_id"):
+            raise HTTPException(status_code=403, detail="Forbidden")
     return await ai_service.run_ai_on_ticket(db, ticket_id)
 
 
@@ -131,9 +140,21 @@ async def get_suggested_actions(ticket_id: str, db: AsyncSession = Depends(get_d
 
 
 @router.post("/actions/{action_id}/approve")
-async def approve_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def approve_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
     # payload may contain { "actor_user_id": "USR-..." }
-    actor_user_id = payload.get("actor_user_id") if payload else current_user.get("user_id")
+    actor_user_id = payload.get("actor_user_id") if payload else (current_user.get("user_id") if current_user else None)
+    # if current_user present, ensure action belongs to their org
+    if current_user:
+        from app.db.models import AISuggestedActionORM
+        res = await db.execute(select(AISuggestedActionORM).where(AISuggestedActionORM.id == action_id))
+        act = res.scalar_one_or_none()
+        if not act:
+            raise HTTPException(status_code=404, detail="Action not found")
+        # load ticket to check org
+        from app.db.models import TicketORM
+        t = await db.get(TicketORM, act.ticket_id)
+        if t and t.organization_id and t.organization_id != current_user.get("organization_id"):
+            raise HTTPException(status_code=403, detail="Forbidden")
     action = await ai_service.approve_action(db, action_id, actor_user_id)
     if not action:
         raise HTTPException(status_code=404, detail="Action not found or unauthorized")
@@ -141,8 +162,17 @@ async def approve_action(action_id: str, payload: dict | None = None, db: AsyncS
 
 
 @router.post("/actions/{action_id}/reject")
-async def reject_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    actor_user_id = payload.get("actor_user_id") if payload else current_user.get("user_id")
+async def reject_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    actor_user_id = payload.get("actor_user_id") if payload else (current_user.get("user_id") if current_user else None)
+    if current_user:
+        from app.db.models import AISuggestedActionORM, TicketORM
+        res = await db.execute(select(AISuggestedActionORM).where(AISuggestedActionORM.id == action_id))
+        act = res.scalar_one_or_none()
+        if not act:
+            raise HTTPException(status_code=404, detail="Action not found")
+        t = await db.get(TicketORM, act.ticket_id)
+        if t and t.organization_id and t.organization_id != current_user.get("organization_id"):
+            raise HTTPException(status_code=403, detail="Forbidden")
     action = await ai_service.reject_action(db, action_id, actor_user_id)
     if not action:
         raise HTTPException(status_code=404, detail="Action not found or unauthorized")
@@ -150,8 +180,17 @@ async def reject_action(action_id: str, payload: dict | None = None, db: AsyncSe
 
 
 @router.post("/actions/{action_id}/execute")
-async def execute_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    executor_user_id = payload.get("executor_user_id") if payload else current_user.get("user_id")
+async def execute_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    executor_user_id = payload.get("executor_user_id") if payload else (current_user.get("user_id") if current_user else None)
+    if current_user:
+        from app.db.models import AISuggestedActionORM, TicketORM
+        res = await db.execute(select(AISuggestedActionORM).where(AISuggestedActionORM.id == action_id))
+        act = res.scalar_one_or_none()
+        if not act:
+            raise HTTPException(status_code=404, detail="Action not found")
+        t = await db.get(TicketORM, act.ticket_id)
+        if t and t.organization_id and t.organization_id != current_user.get("organization_id"):
+            raise HTTPException(status_code=403, detail="Forbidden")
     result = await ai_service.execute_suggested_action(db, action_id, executor_user_id)
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
