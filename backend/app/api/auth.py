@@ -29,6 +29,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    user_id: str
+    organization_id: str
+    role: str
 
 
 class LoginRequest(BaseModel):
@@ -52,4 +55,10 @@ def issue_token(req: LoginRequest):
     else:
         raw = f"{req.user_id}:{req.organization_id}:{req.role}"
         token = base64.urlsafe_b64encode(raw.encode()).decode()
-    return {"access_token": token, "token_type": "bearer"}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user_id": req.user_id,
+        "organization_id": req.organization_id,
+        "role": req.role,
+    }

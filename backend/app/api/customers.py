@@ -6,7 +6,8 @@ from typing import Optional
 
 from app.db.database import get_db
 from app.db.models import CustomerORM, TicketORM, TicketEventORM
-from app.db.seed import DEFAULT_ORG_ID
+from app.api.auth import optional_current_user
+from app.core.tenant import resolve_org_id, assert_org_access
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -43,8 +44,9 @@ def _fmt(c: CustomerORM) -> dict:
 async def list_customers(
     search: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
 ):
-    q = select(CustomerORM).where(CustomerORM.organization_id == DEFAULT_ORG_ID)
+    q = select(CustomerORM).where(CustomerORM.organization_id == resolve_org_id(current_user))
     if search:
         term = f"%{search}%"
         q = q.where(CustomerORM.name.ilike(term) | CustomerORM.email.ilike(term))
@@ -53,9 +55,13 @@ async def list_customers(
 
 
 @router.post("", status_code=201)
-async def create_customer(data: CustomerCreate, db: AsyncSession = Depends(get_db)):
+async def create_customer(
+    data: CustomerCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
+):
     c = CustomerORM(
-        organization_id=DEFAULT_ORG_ID,
+        organization_id=resolve_org_id(current_user),
         name=data.name,
         email=data.email,
         company=data.company,
@@ -68,13 +74,30 @@ async def create_customer(data: CustomerCreate, db: AsyncSession = Depends(get_d
 
 
 @router.get("/{customer_id}")
-async def get_customer(customer_id: str, db: AsyncSession = Depends(get_db)):
-    return _fmt(await _get_or_404(db, customer_id))
+async def get_customer(
+    customer_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
+):
+    customer = await _get_or_404(db, customer_id)
+    try:
+        assert_org_access(customer.organization_id, current_user)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _fmt(customer)
 
 
 @router.get("/{customer_id}/tickets")
-async def get_customer_tickets(customer_id: str, db: AsyncSession = Depends(get_db)):
-    await _get_or_404(db, customer_id)
+async def get_customer_tickets(
+    customer_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
+):
+    customer = await _get_or_404(db, customer_id)
+    try:
+        assert_org_access(customer.organization_id, current_user)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden")
     result = await db.execute(
         select(TicketORM)
         .where(TicketORM.customer_id == customer_id)
@@ -88,8 +111,16 @@ async def get_customer_tickets(customer_id: str, db: AsyncSession = Depends(get_
 
 
 @router.get("/{customer_id}/timeline")
-async def get_customer_timeline(customer_id: str, db: AsyncSession = Depends(get_db)):
-    await _get_or_404(db, customer_id)
+async def get_customer_timeline(
+    customer_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
+):
+    customer = await _get_or_404(db, customer_id)
+    try:
+        assert_org_access(customer.organization_id, current_user)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden")
     result = await db.execute(
         select(TicketEventORM, TicketORM.title)
         .join(TicketORM, TicketEventORM.ticket_id == TicketORM.id)

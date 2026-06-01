@@ -12,6 +12,7 @@ from app.db.models import (
 )
 from app.api.auth import optional_current_user
 from app.core.tenant import resolve_org_id, assert_org_access
+from app.core.config import settings
 from app.services import rag_service
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -99,6 +100,17 @@ async def upload_document(
         db.add(src)
         await db.flush()
         source_id = src.id
+    else:
+        src_result = await db.execute(
+            select(KnowledgeSourceORM).where(KnowledgeSourceORM.id == source_id)
+        )
+        src = src_result.scalar_one_or_none()
+        if not src:
+            raise HTTPException(status_code=404, detail="Source not found")
+        try:
+            assert_org_access(src.organization_id, current_user)
+        except PermissionError:
+            raise HTTPException(status_code=403, detail="Forbidden")
 
     doc = KnowledgeDocumentORM(
         organization_id=org_id,
@@ -152,11 +164,23 @@ async def ingest_document(
     job = KnowledgeIngestionJobORM(
         organization_id=doc.organization_id,
         document_id=document_id,
-        status="running",
+        status="queued" if settings.REDIS_URL else "running",
     )
     db.add(job)
-    doc.status = "ingesting"
+    doc.status = "queued" if settings.REDIS_URL else "ingesting"
     await db.flush()
+
+    if settings.REDIS_URL:
+        from app.background.tasks import process_document_ingestion_task
+
+        await db.commit()
+        try:
+            process_document_ingestion_task.delay(job.id)
+            return {"document_id": document_id, "status": job.status, "job_id": job.id, "task_queued": True}
+        except Exception:
+            doc.status = "ingesting"
+            job.status = "running"
+            await db.commit()
 
     # Resolve source name for citation metadata
     source_name = ""
@@ -168,6 +192,7 @@ async def ingest_document(
         source_name = src.name if src else ""
 
     try:
+        doc.status = "ingesting"
         result = await rag_service.ingest_document_file(
             db, doc.storage_path, doc.title, doc.id, doc.organization_id, source_name
         )
