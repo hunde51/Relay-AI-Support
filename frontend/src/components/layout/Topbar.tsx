@@ -27,11 +27,13 @@ export function Topbar({ onOpenCommand }: TopbarProps) {
         </button>
         {auth.token ? (
           <>
-            <button className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 transition-colors hover:bg-card">
+            <button className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 transition-colors hover:bg-card" title={auth.organizationId ?? "unknown org"}>
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-primary/40 to-info/40 text-xs font-medium text-foreground">
-                AR
+                {(auth.userId ?? "AR").slice(0, 2).toUpperCase()}
               </div>
-              <span className="hidden sm:block text-sm">Alex R.</span>
+              <span className="hidden sm:block text-sm">
+                {auth.userId ?? "Signed in"} · {auth.organizationId ?? "org"}
+              </span>
               <ChevronDown className="hidden sm:block h-3.5 w-3.5 text-muted-foreground" />
             </button>
             <button onClick={() => auth.logout()} className="ml-2 rounded bg-red-600 px-3 py-1 text-white text-sm">Logout</button>
@@ -52,7 +54,12 @@ export function Topbar({ onOpenCommand }: TopbarProps) {
                 });
                 const body = await resp.json();
                 if (resp.ok && body.access_token) {
-                  auth.login(body.access_token);
+                  auth.login({
+                    token: body.access_token,
+                    userId: body.user_id ?? userId,
+                    organizationId: body.organization_id ?? org,
+                    role: body.role ?? role,
+                  });
                   window.location.reload();
                 } else {
                   alert("Login failed");

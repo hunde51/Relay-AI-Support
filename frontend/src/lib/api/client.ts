@@ -99,6 +99,24 @@ export type DashboardSummary = {
   in_progress_tickets: number;
   resolved_today: number;
   avg_first_response_minutes: number | null;
+  auto_resolution_rate?: number;
+};
+
+export type ApiKnowledgeSource = {
+  id: string;
+  name: string;
+  source_type: string;
+  status: string;
+  created_at: string;
+};
+
+export type ApiKnowledgeChunk = {
+  id: string;
+  chunk_index: string;
+  content: string;
+  token_count: string | null;
+  content_hash: string;
+  created_at: string;
 };
 
 export type WorkspaceSettings = {
@@ -196,8 +214,9 @@ export const api = {
   },
 
   knowledge: {
-    sources: () => request<unknown[]>(`${BASE}/knowledge/sources`),
+    sources: () => request<ApiKnowledgeSource[]>(`${BASE}/knowledge/sources`),
     documents: () => request<unknown[]>(`${BASE}/knowledge/documents`),
+    chunks: (documentId: string) => request<ApiKnowledgeChunk[]>(`${BASE}/knowledge/documents/${documentId}/chunks`),
     search: (query: string, top_k = 4) =>
       request<{ query: string; results: unknown[] }>(`${BASE}/knowledge/search`, {
         method: "POST",

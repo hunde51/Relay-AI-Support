@@ -139,6 +139,29 @@ async def get_suggested_actions(ticket_id: str, db: AsyncSession = Depends(get_d
     ]
 
 
+@router.get("/runs/{run_id}/suggested-actions")
+async def get_run_suggested_actions(run_id: str, db: AsyncSession = Depends(get_db)):
+    actions = await ai_service.get_suggested_actions_for_run(db, run_id)
+    return [
+        {
+            "id": a.id,
+            "ai_run_id": a.ai_run_id,
+            "ticket_id": a.ticket_id,
+            "action_type": a.action_type,
+            "payload": a.payload,
+            "risk_level": a.risk_level,
+            "requires_approval": a.requires_approval,
+            "approval_status": a.approval_status,
+            "approved_by_user_id": a.approved_by_user_id,
+            "approved_at": a.approved_at,
+            "rejected_by_user_id": a.rejected_by_user_id,
+            "rejected_at": a.rejected_at,
+            "created_at": a.created_at,
+        }
+        for a in actions
+    ]
+
+
 @router.post("/actions/{action_id}/approve")
 async def approve_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
     # payload may contain { "actor_user_id": "USR-..." }

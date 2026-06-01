@@ -7,40 +7,20 @@ from app.ai_engine.graph import agent_graph
 from app.ai_engine.state import AgentState
 from app.repositories import ticket_repository
 from app.db.models import OrganizationSettingsORM
+from app.core.config import settings
 
 
 def _utc_now():
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
-    ticket = await ticket_repository.get_by_id(db, ticket_id)
-    if not ticket:
-        return {"error": "Ticket not found"}
-
-    # Respect organization-level AI enablement (feature flag)
-    if ticket.organization_id:
-        res = await db.execute(select(OrganizationSettingsORM).where(OrganizationSettingsORM.organization_id == ticket.organization_id))
-        settings = res.scalar_one_or_none()
-        if settings and not settings.ai_enabled:
-            return {"error": "AI disabled for organization"}
-
-    # Create the AI run record upfront so nodes can reference it
-    ai_run = AIRunORM(
-        ticket_id=ticket_id,
-        organization_id=ticket.organization_id,
-        status="running",
-        started_at=_utc_now(),
-    )
-    db.add(ai_run)
-    await db.flush()
-
-    initial_state: AgentState = {
+def _build_initial_state(ticket, ai_run) -> AgentState:
+    return {
         # Required inputs
-        "ticket_id": ticket_id,
+        "ticket_id": ticket.id,
         "organization_id": ticket.organization_id or "",
         "ai_run_id": ai_run.id,
-        "db": db,
+        "db": None,  # injected per execution path
         # Ticket fields (refreshed by load_ticket_context node)
         "title": ticket.title,
         "message": ticket.message,
@@ -75,6 +55,40 @@ async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
         "steps": [],
     }
 
+
+async def process_ai_run(db: AsyncSession, ai_run_id: str) -> dict:
+    result = await db.execute(select(AIRunORM).where(AIRunORM.id == ai_run_id))
+    ai_run = result.scalar_one_or_none()
+    if not ai_run:
+        return {"error": "AI run not found"}
+
+    ticket = await ticket_repository.get_by_id(db, ai_run.ticket_id)
+    if not ticket:
+        ai_run.status = "failed"
+        ai_run.error = "Ticket not found"
+        ai_run.completed_at = _utc_now()
+        await db.commit()
+        return {"error": "Ticket not found"}
+
+    # Respect organization-level AI enablement (feature flag)
+    if ticket.organization_id:
+        res = await db.execute(select(OrganizationSettingsORM).where(OrganizationSettingsORM.organization_id == ticket.organization_id))
+        org_settings = res.scalar_one_or_none()
+        if org_settings and not org_settings.ai_enabled:
+            ai_run.status = "failed"
+            ai_run.error = "AI disabled for organization"
+            ai_run.completed_at = _utc_now()
+            await db.commit()
+            return {"error": "AI disabled for organization"}
+
+    ai_run.status = "running"
+    if not ai_run.started_at:
+        ai_run.started_at = _utc_now()
+    await db.commit()
+
+    initial_state = _build_initial_state(ticket, ai_run)
+    initial_state["db"] = db
+
     try:
         await agent_graph.ainvoke(initial_state)
         # persist_ai_run node already committed; refresh to get final state
@@ -94,6 +108,45 @@ async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
         "risk_level": ai_run.risk_level,
         "error": ai_run.error,
     }
+
+
+async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
+    ticket = await ticket_repository.get_by_id(db, ticket_id)
+    if not ticket:
+        return {"error": "Ticket not found"}
+
+    ai_run = AIRunORM(
+        ticket_id=ticket_id,
+        organization_id=ticket.organization_id,
+        status="queued" if settings.REDIS_URL else "running",
+        started_at=_utc_now() if not settings.REDIS_URL else None,
+    )
+    db.add(ai_run)
+    await db.commit()
+    await db.refresh(ai_run)
+
+    if settings.REDIS_URL:
+        from app.background.tasks import process_ai_run_task
+
+        try:
+            process_ai_run_task.delay(ai_run.id)
+            return {
+                "run_id": ai_run.id,
+                "status": ai_run.status,
+                "final_decision": ai_run.final_decision,
+                "confidence": ai_run.confidence,
+                "risk_level": ai_run.risk_level,
+                "error": ai_run.error,
+                "task_queued": True,
+            }
+        except Exception:
+            ai_run.status = "running"
+            if not ai_run.started_at:
+                ai_run.started_at = _utc_now()
+            await db.commit()
+            return await process_ai_run(db, ai_run.id)
+
+    return await process_ai_run(db, ai_run.id)
 
 
 async def get_runs_for_ticket(db: AsyncSession, ticket_id: str) -> list:

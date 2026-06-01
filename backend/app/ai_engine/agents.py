@@ -45,7 +45,45 @@ def _parse_json(text: str, fallback: dict) -> dict:
     return fallback
 
 
-async def _emit(state: AgentState, step_name: str, message: str, extra: dict | None = None) -> dict:
+def _build_input_summary(state: AgentState, step_name: str) -> dict:
+    """Capture the minimum context needed to audit a node."""
+    summary = {
+        "ticket_id": state.get("ticket_id"),
+        "organization_id": state.get("organization_id"),
+        "title": state.get("title"),
+        "category": state.get("category"),
+        "priority": state.get("priority"),
+        "customer_id": state.get("customer_id"),
+        "assignee_id": state.get("assignee_id"),
+        "decision": state.get("decision"),
+        "decision_confidence": state.get("decision_confidence"),
+        "risk_level": state.get("risk_level"),
+        "sentiment": state.get("sentiment"),
+        "urgency": state.get("urgency"),
+    }
+
+    if step_name == "retrieve_knowledge":
+        summary["query"] = f"{state.get('title', '')}\n{state.get('message', '')}".strip()
+    elif step_name in {"draft_response", "draft_clarifying_question"}:
+        summary["knowledge_results_count"] = len(state.get("knowledge_results", []))
+        summary["citations"] = list(state.get("citations", []))
+    elif step_name in {"create_suggested_action", "determine_approval_required"}:
+        summary["suggested_action_id"] = state.get("suggested_action_id")
+        summary["requires_approval"] = state.get("requires_approval")
+
+    return {k: v for k, v in summary.items() if v not in (None, "", [], {})}
+
+
+async def _emit(
+    state: AgentState,
+    step_name: str,
+    message: str,
+    extra: dict | None = None,
+    *,
+    input_summary: dict | None = None,
+    status: str = "completed",
+    error: str | None = None,
+) -> dict:
     """Persist step to DB and stream to frontend."""
     step = {"step": step_name, "message": message, **(extra or {})}
 
@@ -53,11 +91,13 @@ async def _emit(state: AgentState, step_name: str, message: str, extra: dict | N
     orm = AIStepORM(
         ai_run_id=state["ai_run_id"],
         step_name=step_name,
-        status="completed",
+        status=status,
+        input_summary=json.dumps(input_summary or _build_input_summary(state, step_name)),
         output=step,
-        confidence=str(extra.get("confidence", "")) if extra else "",
+        confidence=str((extra or {}).get("confidence")) if (extra or {}).get("confidence") is not None else None,
         started_at=_utc_now(),
         completed_at=_utc_now(),
+        error=error,
     )
     db.add(orm)
     await db.flush()

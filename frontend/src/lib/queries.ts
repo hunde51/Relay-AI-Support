@@ -13,6 +13,7 @@ export const keys = {
   customers:        (q?: string) => ["customers", q ?? ""] as const,
   kbDocuments:      ["kb", "documents"] as const,
   kbSources:        ["kb", "sources"] as const,
+  kbChunks:         (id: string) => ["kb", "chunks", id] as const,
   kbSearch:         (q: string) => ["kb", "search", q] as const,
   analyticsCategories:     ["analytics", "categories"] as const,
   analyticsResolution:     ["analytics", "resolution"] as const,
@@ -107,6 +108,17 @@ export const useExecuteAction = (ticketId: string) => {
 // ── Knowledge ─────────────────────────────────────────────────────────────────
 export const useKBDocuments = () =>
   useQuery({ queryKey: keys.kbDocuments, queryFn: () => api.knowledge.documents() });
+
+export const useKBSources = () =>
+  useQuery({ queryKey: keys.kbSources, queryFn: () => api.knowledge.sources(), staleTime: 60_000 });
+
+export const useKBChunks = (documentId: string | null) =>
+  useQuery({
+    queryKey: documentId ? keys.kbChunks(documentId) : ["kb", "chunks", "none"],
+    queryFn: () => api.knowledge.chunks(documentId as string),
+    enabled: Boolean(documentId),
+    staleTime: 60_000,
+  });
 
 export const useKBSearch = (query: string) =>
   useQuery({

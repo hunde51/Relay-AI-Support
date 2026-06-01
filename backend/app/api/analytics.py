@@ -5,21 +5,26 @@ from datetime import UTC, datetime, timedelta
 
 from app.db.database import get_db
 from app.db.models import TicketORM, AIRunORM
+from app.api.auth import optional_current_user
+from app.core.tenant import resolve_org_id
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
 @router.get("/categories")
-async def category_distribution(db: AsyncSession = Depends(get_db)):
+async def category_distribution(db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    org_id = resolve_org_id(current_user)
     result = await db.execute(
         select(TicketORM.category, func.count().label("count"))
+        .where(TicketORM.organization_id == org_id)
         .group_by(TicketORM.category)
     )
     return [{"category": row.category, "count": row.count} for row in result.all()]
 
 
 @router.get("/resolution-trend")
-async def resolution_trend(db: AsyncSession = Depends(get_db)):
+async def resolution_trend(db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    org_id = resolve_org_id(current_user)
     """Daily resolved ticket count for the last 14 days."""
     cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=14)
     result = await db.execute(
@@ -27,7 +32,7 @@ async def resolution_trend(db: AsyncSession = Depends(get_db)):
             func.date(TicketORM.resolved_at).label("day"),
             func.count().label("count"),
         )
-        .where(TicketORM.resolved_at >= cutoff)
+        .where(TicketORM.organization_id == org_id, TicketORM.resolved_at >= cutoff)
         .group_by(func.date(TicketORM.resolved_at))
         .order_by(func.date(TicketORM.resolved_at))
     )
@@ -35,11 +40,12 @@ async def resolution_trend(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/auto-resolution-rate")
-async def auto_resolution_rate(db: AsyncSession = Depends(get_db)):
-    total = (await db.execute(select(func.count()).select_from(AIRunORM))).scalar_one()
+async def auto_resolution_rate(db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    org_id = resolve_org_id(current_user)
+    total = (await db.execute(select(func.count()).select_from(AIRunORM).where(AIRunORM.organization_id == org_id))).scalar_one()
     resolved = (
         await db.execute(
-            select(func.count()).select_from(AIRunORM).where(AIRunORM.final_decision == "resolve")
+            select(func.count()).select_from(AIRunORM).where(AIRunORM.organization_id == org_id, AIRunORM.final_decision == "resolve")
         )
     ).scalar_one()
     rate = round(resolved / total, 4) if total else 0.0
@@ -47,13 +53,15 @@ async def auto_resolution_rate(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/peak-hours")
-async def peak_hours(db: AsyncSession = Depends(get_db)):
+async def peak_hours(db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    org_id = resolve_org_id(current_user)
     """Ticket count grouped by hour-of-day (0–23)."""
     result = await db.execute(
         select(
             func.strftime("%H", TicketORM.created_at).label("hour"),
             func.count().label("count"),
         )
+        .where(TicketORM.organization_id == org_id)
         .group_by(func.strftime("%H", TicketORM.created_at))
         .order_by(func.strftime("%H", TicketORM.created_at))
     )
@@ -61,11 +69,13 @@ async def peak_hours(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/sla-performance")
-async def sla_performance(db: AsyncSession = Depends(get_db)):
-    total = (await db.execute(select(func.count()).select_from(TicketORM).where(TicketORM.sla_due_at.isnot(None)))).scalar_one()
+async def sla_performance(db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    org_id = resolve_org_id(current_user)
+    total = (await db.execute(select(func.count()).select_from(TicketORM).where(TicketORM.organization_id == org_id, TicketORM.sla_due_at.isnot(None)))).scalar_one()
     breached = (
         await db.execute(
             select(func.count()).select_from(TicketORM).where(
+                TicketORM.organization_id == org_id,
                 TicketORM.sla_due_at.isnot(None),
                 TicketORM.resolved_at > TicketORM.sla_due_at,
             )
@@ -76,10 +86,11 @@ async def sla_performance(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/agent-performance")
-async def agent_performance(db: AsyncSession = Depends(get_db)):
+async def agent_performance(db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    org_id = resolve_org_id(current_user)
     result = await db.execute(
         select(AIRunORM.final_decision, func.count().label("count"))
-        .where(AIRunORM.status == "completed")
+        .where(AIRunORM.organization_id == org_id, AIRunORM.status == "completed")
         .group_by(AIRunORM.final_decision)
     )
     return [{"decision": row.final_decision, "count": row.count} for row in result.all()]
