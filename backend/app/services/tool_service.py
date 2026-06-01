@@ -63,6 +63,13 @@ async def invoke_tool(db, ai_run_id: str, ticket_id: str | None, tool_name: str,
     if not entry:
         raise RuntimeError(f"Unknown tool: {tool_name}")
 
+    # Ensure we have an ai_run_id; create a new AIRun if not provided
+    if not ai_run_id:
+        new_run = AIRunORM(ticket_id=ticket_id or "")
+        db.add(new_run)
+        await db.flush()
+        ai_run_id = new_run.id
+
     tool_type = entry.get("type", "read")
 
     # For controlled tools, consult organization settings to decide whether to execute or create suggested action

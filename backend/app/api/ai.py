@@ -22,7 +22,10 @@ async def invoke_tool_api(tool_name: str, payload: dict, db: AsyncSession = Depe
     from app.services.tool_service import invoke_tool
     ai_run_id = payload.get("ai_run_id")
     ticket_id = payload.get("ticket_id")
-    arguments = payload.get("arguments")
+    arguments = payload.get("arguments") or {}
+    # ensure ticket_id is available to tool handlers via arguments
+    if ticket_id and "ticket_id" not in arguments:
+        arguments["ticket_id"] = ticket_id
     requester_user_id = payload.get("requester_user_id")
     confidence = payload.get("confidence")
     result = await invoke_tool(db, ai_run_id, ticket_id, tool_name, arguments=arguments, requester_user_id=requester_user_id, confidence=confidence)
