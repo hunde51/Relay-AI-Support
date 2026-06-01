@@ -125,24 +125,28 @@ async def get_suggested_actions(ticket_id: str, db: AsyncSession = Depends(get_d
 
 
 @router.post("/actions/{action_id}/approve")
-async def approve_action(action_id: str, db: AsyncSession = Depends(get_db)):
-    action = await ai_service.approve_action(db, action_id)
+async def approve_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db)):
+    # payload may contain { "actor_user_id": "USR-..." }
+    actor_user_id = payload.get("actor_user_id") if payload else None
+    action = await ai_service.approve_action(db, action_id, actor_user_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise HTTPException(status_code=404, detail="Action not found or unauthorized")
     return {"id": action.id, "approval_status": action.approval_status}
 
 
 @router.post("/actions/{action_id}/reject")
-async def reject_action(action_id: str, db: AsyncSession = Depends(get_db)):
-    action = await ai_service.reject_action(db, action_id)
+async def reject_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db)):
+    actor_user_id = payload.get("actor_user_id") if payload else None
+    action = await ai_service.reject_action(db, action_id, actor_user_id)
     if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
+        raise HTTPException(status_code=404, detail="Action not found or unauthorized")
     return {"id": action.id, "approval_status": action.approval_status}
 
 
 @router.post("/actions/{action_id}/execute")
-async def execute_action(action_id: str, db: AsyncSession = Depends(get_db)):
-    result = await ai_service.execute_suggested_action(db, action_id)
+async def execute_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db)):
+    executor_user_id = payload.get("executor_user_id") if payload else None
+    result = await ai_service.execute_suggested_action(db, action_id, executor_user_id)
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
     return result

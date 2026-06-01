@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.db.models import AIRunORM, AIStepORM, AISuggestedActionORM
+from app.db.models import AIRunORM, AIStepORM, AISuggestedActionORM, AuditLogORM, UserORM
 from app.db.seed import DEFAULT_ORG_ID
 from app.ai_engine.graph import agent_graph
 from app.ai_engine.state import AgentState
@@ -116,25 +116,70 @@ async def get_suggested_actions(db: AsyncSession, ticket_id: str) -> list:
     return result.scalars().all()
 
 
-async def approve_action(db: AsyncSession, action_id: str) -> AISuggestedActionORM | None:
+async def approve_action(db: AsyncSession, action_id: str, actor_user_id: str | None = None) -> AISuggestedActionORM | None:
     result = await db.execute(select(AISuggestedActionORM).where(AISuggestedActionORM.id == action_id))
     action = result.scalar_one_or_none()
     if not action:
         return None
+    # RBAC: only admin or manager can approve
+    if actor_user_id:
+        u = await db.execute(select(UserORM).where(UserORM.id == actor_user_id))
+        user = u.scalar_one_or_none()
+        if not user or user.role not in ("admin", "manager"):
+            return None
+
     action.approval_status = "approved"
     action.approved_at = _utc_now()
+    await db.flush()
+
+    # Audit log
+    audit = AuditLogORM(
+        organization_id=action.ticket.organization_id if hasattr(action, "ticket") and action.ticket else None,
+        actor_type="user",
+        actor_user_id=actor_user_id,
+        action="approve",
+        resource_type="ai_suggested_action",
+        resource_id=action.id,
+        metadata_json={
+            "action_type": action.action_type,
+            "ticket_id": action.ticket_id,
+        },
+    )
+    db.add(audit)
     await db.commit()
     await db.refresh(action)
     return action
 
 
-async def reject_action(db: AsyncSession, action_id: str) -> AISuggestedActionORM | None:
+async def reject_action(db: AsyncSession, action_id: str, actor_user_id: str | None = None) -> AISuggestedActionORM | None:
     result = await db.execute(select(AISuggestedActionORM).where(AISuggestedActionORM.id == action_id))
     action = result.scalar_one_or_none()
     if not action:
         return None
+    # RBAC: only admin or manager can reject
+    if actor_user_id:
+        u = await db.execute(select(UserORM).where(UserORM.id == actor_user_id))
+        user = u.scalar_one_or_none()
+        if not user or user.role not in ("admin", "manager"):
+            return None
+
     action.approval_status = "rejected"
     action.rejected_at = _utc_now()
+    await db.flush()
+
+    audit = AuditLogORM(
+        organization_id=action.ticket.organization_id if hasattr(action, "ticket") and action.ticket else None,
+        actor_type="user",
+        actor_user_id=actor_user_id,
+        action="reject",
+        resource_type="ai_suggested_action",
+        resource_id=action.id,
+        metadata_json={
+            "action_type": action.action_type,
+            "ticket_id": action.ticket_id,
+        },
+    )
+    db.add(audit)
     await db.commit()
     await db.refresh(action)
     return action
@@ -155,14 +200,46 @@ async def execute_suggested_action(db: AsyncSession, action_id: str, executor_us
     payload = action.payload or {}
     arguments = payload.get("arguments") or {}
 
-    # Force execution when running approved suggested action
+    # RBAC check: only admin/manager can execute
+    if executor_user_id:
+        u = await db.execute(select(UserORM).where(UserORM.id == executor_user_id))
+        user = u.scalar_one_or_none()
+        if not user or user.role not in ("admin", "manager"):
+            return {"error": "unauthorized"}
+
+    # record audit of attempt
+    audit_attempt = AuditLogORM(
+        organization_id=action.ticket.organization_id if hasattr(action, "ticket") and action.ticket else None,
+        actor_type="user",
+        actor_user_id=executor_user_id,
+        action="execute_attempt",
+        resource_type="ai_suggested_action",
+        resource_id=action.id,
+        metadata_json={"action_type": action.action_type, "ticket_id": action.ticket_id},
+    )
+    db.add(audit_attempt)
+    await db.flush()
+
     try:
         res = await invoke_tool(db, action.ai_run_id, action.ticket_id, action.action_type, arguments=arguments, requester_user_id=executor_user_id, force_execute=True)
         # Mark action as executed in approval_status
         action.approval_status = "executed"
         action.approved_by_user_id = executor_user_id
         action.approved_at = _utc_now()
+        await db.flush()
+
+        audit_success = AuditLogORM(
+            organization_id=action.ticket.organization_id if hasattr(action, "ticket") and action.ticket else None,
+            actor_type="user",
+            actor_user_id=executor_user_id,
+            action="execute",
+            resource_type="ai_suggested_action",
+            resource_id=action.id,
+            metadata_json={"result": res},
+        )
+        db.add(audit_success)
         await db.commit()
         return {"result": res}
     except Exception as e:
+        await db.rollback()
         return {"error": str(e)}
