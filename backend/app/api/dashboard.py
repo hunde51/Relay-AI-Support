@@ -5,31 +5,38 @@ from datetime import UTC, datetime, timedelta
 
 from app.db.database import get_db
 from app.db.models import TicketORM, TicketEventORM, AIRunORM
+from app.api.auth import optional_current_user
+from app.core.tenant import resolve_org_id
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/summary")
-async def get_summary(db: AsyncSession = Depends(get_db)):
+async def get_summary(db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    org_id = resolve_org_id(current_user)
     today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
 
-    total = (await db.execute(select(func.count()).select_from(TicketORM))).scalar_one()
-    open_count = (await db.execute(select(func.count()).select_from(TicketORM).where(TicketORM.status == "open"))).scalar_one()
-    in_progress = (await db.execute(select(func.count()).select_from(TicketORM).where(TicketORM.status == "in_progress"))).scalar_one()
+    total = (await db.execute(select(func.count()).select_from(TicketORM).where(TicketORM.organization_id == org_id))).scalar_one()
+    open_count = (await db.execute(select(func.count()).select_from(TicketORM).where(TicketORM.organization_id == org_id, TicketORM.status == "open"))).scalar_one()
+    in_progress = (await db.execute(select(func.count()).select_from(TicketORM).where(TicketORM.organization_id == org_id, TicketORM.status == "in_progress"))).scalar_one()
     resolved_today = (await db.execute(
         select(func.count()).select_from(TicketORM)
-        .where(TicketORM.status == "resolved", TicketORM.resolved_at >= today_start)
+        .where(TicketORM.organization_id == org_id, TicketORM.status == "resolved", TicketORM.resolved_at >= today_start)
     )).scalar_one()
 
     # avg first response in minutes (tickets that have first_response_at set)
     rows = (await db.execute(
         select(TicketORM.created_at, TicketORM.first_response_at)
-        .where(TicketORM.first_response_at.isnot(None))
+        .where(TicketORM.organization_id == org_id, TicketORM.first_response_at.isnot(None))
     )).all()
     avg_response = None
     if rows:
         diffs = [(r.first_response_at - r.created_at).total_seconds() / 60 for r in rows]
         avg_response = round(sum(diffs) / len(diffs), 1)
+
+    completed_runs = (await db.execute(select(func.count()).select_from(AIRunORM).where(AIRunORM.organization_id == org_id, AIRunORM.status == "completed"))).scalar_one()
+    auto_resolved = (await db.execute(select(func.count()).select_from(AIRunORM).where(AIRunORM.organization_id == org_id, AIRunORM.final_decision == "resolve"))).scalar_one()
+    auto_resolution_rate = round(auto_resolved / completed_runs, 4) if completed_runs else 0.0
 
     return {
         "total_tickets": total,
@@ -37,19 +44,21 @@ async def get_summary(db: AsyncSession = Depends(get_db)):
         "in_progress_tickets": in_progress,
         "resolved_today": resolved_today,
         "avg_first_response_minutes": avg_response,
+        "auto_resolution_rate": auto_resolution_rate,
     }
 
 
 @router.get("/ticket-volume")
-async def get_ticket_volume(db: AsyncSession = Depends(get_db)):
+async def get_ticket_volume(db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
     """Daily ticket creation count for the last 14 days."""
+    org_id = resolve_org_id(current_user)
     cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=14)
     result = await db.execute(
         select(
             func.date(TicketORM.created_at).label("day"),
             func.count().label("count"),
         )
-        .where(TicketORM.created_at >= cutoff)
+        .where(TicketORM.organization_id == org_id, TicketORM.created_at >= cutoff)
         .group_by(func.date(TicketORM.created_at))
         .order_by(func.date(TicketORM.created_at))
     )
@@ -57,16 +66,17 @@ async def get_ticket_volume(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/ai-performance")
-async def get_ai_performance(db: AsyncSession = Depends(get_db)):
-    total_runs = (await db.execute(select(func.count()).select_from(AIRunORM))).scalar_one()
+async def get_ai_performance(db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    org_id = resolve_org_id(current_user)
+    total_runs = (await db.execute(select(func.count()).select_from(AIRunORM).where(AIRunORM.organization_id == org_id))).scalar_one()
     completed = (await db.execute(
-        select(func.count()).select_from(AIRunORM).where(AIRunORM.status == "completed")
+        select(func.count()).select_from(AIRunORM).where(AIRunORM.organization_id == org_id, AIRunORM.status == "completed")
     )).scalar_one()
     failed = (await db.execute(
-        select(func.count()).select_from(AIRunORM).where(AIRunORM.status == "failed")
+        select(func.count()).select_from(AIRunORM).where(AIRunORM.organization_id == org_id, AIRunORM.status == "failed")
     )).scalar_one()
     auto_resolved = (await db.execute(
-        select(func.count()).select_from(AIRunORM).where(AIRunORM.final_decision == "resolve")
+        select(func.count()).select_from(AIRunORM).where(AIRunORM.organization_id == org_id, AIRunORM.final_decision == "resolve")
     )).scalar_one()
     return {
         "total_runs": total_runs,
@@ -79,10 +89,12 @@ async def get_ai_performance(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/recent-activity")
-async def get_recent_activity(db: AsyncSession = Depends(get_db)):
+async def get_recent_activity(db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    org_id = resolve_org_id(current_user)
     result = await db.execute(
         select(TicketEventORM, TicketORM.title)
         .join(TicketORM, TicketEventORM.ticket_id == TicketORM.id)
+        .where(TicketORM.organization_id == org_id)
         .order_by(TicketEventORM.created_at.desc())
         .limit(20)
     )

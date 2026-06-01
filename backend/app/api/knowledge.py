@@ -10,7 +10,8 @@ from app.db.models import (
     KnowledgeSourceORM, KnowledgeDocumentORM,
     KnowledgeChunkORM, KnowledgeIngestionJobORM,
 )
-from app.db.seed import DEFAULT_ORG_ID
+from app.api.auth import optional_current_user
+from app.core.tenant import resolve_org_id, assert_org_access
 from app.services import rag_service
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -24,10 +25,14 @@ class SearchRequest(BaseModel):
 # ── Sources ──────────────────────────────────────────────────────────────────
 
 @router.get("/sources")
-async def list_sources(db: AsyncSession = Depends(get_db)):
+async def list_sources(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
+):
+    org_id = resolve_org_id(current_user)
     result = await db.execute(
         select(KnowledgeSourceORM)
-        .where(KnowledgeSourceORM.organization_id == DEFAULT_ORG_ID)
+        .where(KnowledgeSourceORM.organization_id == org_id)
         .order_by(KnowledgeSourceORM.created_at.desc())
     )
     sources = result.scalars().all()
@@ -44,9 +49,11 @@ async def list_sources(db: AsyncSession = Depends(get_db)):
 async def create_source(
     name: str, source_type: str = "manual_upload",
     db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
 ):
+    org_id = resolve_org_id(current_user)
     s = KnowledgeSourceORM(
-        organization_id=DEFAULT_ORG_ID, name=name, source_type=source_type
+        organization_id=org_id, name=name, source_type=source_type
     )
     db.add(s)
     await db.commit()
@@ -57,10 +64,14 @@ async def create_source(
 # ── Documents ─────────────────────────────────────────────────────────────────
 
 @router.get("/documents")
-async def list_documents(db: AsyncSession = Depends(get_db)):
+async def list_documents(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
+):
+    org_id = resolve_org_id(current_user)
     result = await db.execute(
         select(KnowledgeDocumentORM)
-        .where(KnowledgeDocumentORM.organization_id == DEFAULT_ORG_ID)
+        .where(KnowledgeDocumentORM.organization_id == org_id)
         .order_by(KnowledgeDocumentORM.created_at.desc())
     )
     docs = result.scalars().all()
@@ -72,14 +83,16 @@ async def upload_document(
     file: UploadFile = File(...),
     source_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
 ):
+    org_id = resolve_org_id(current_user)
     content = await file.read()
     checksum = hashlib.sha256(content).hexdigest()
 
     # Reuse existing source or create a default one
     if not source_id:
         src = KnowledgeSourceORM(
-            organization_id=DEFAULT_ORG_ID,
+            organization_id=org_id,
             name="Uploads",
             source_type="manual_upload",
         )
@@ -88,7 +101,7 @@ async def upload_document(
         source_id = src.id
 
     doc = KnowledgeDocumentORM(
-        organization_id=DEFAULT_ORG_ID,
+        organization_id=org_id,
         source_id=source_id,
         title=file.filename or "Untitled",
         content_type=file.content_type or "text/plain",
@@ -111,17 +124,33 @@ async def upload_document(
 
 
 @router.get("/documents/{document_id}")
-async def get_document(document_id: str, db: AsyncSession = Depends(get_db)):
+async def get_document(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
+):
     doc = await _get_doc_or_404(db, document_id)
+    try:
+        assert_org_access(doc.organization_id, current_user)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return _fmt_doc(doc)
 
 
 @router.post("/documents/{document_id}/ingest")
-async def ingest_document(document_id: str, db: AsyncSession = Depends(get_db)):
+async def ingest_document(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
+):
     doc = await _get_doc_or_404(db, document_id)
+    try:
+        assert_org_access(doc.organization_id, current_user)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     job = KnowledgeIngestionJobORM(
-        organization_id=DEFAULT_ORG_ID,
+        organization_id=doc.organization_id,
         document_id=document_id,
         status="running",
     )
@@ -140,7 +169,7 @@ async def ingest_document(document_id: str, db: AsyncSession = Depends(get_db)):
 
     try:
         result = await rag_service.ingest_document_file(
-            db, doc.storage_path, doc.title, doc.id, DEFAULT_ORG_ID, source_name
+            db, doc.storage_path, doc.title, doc.id, doc.organization_id, source_name
         )
         doc.status = "ingested"
         job.status = "completed"
@@ -155,8 +184,16 @@ async def ingest_document(document_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.delete("/documents/{document_id}", status_code=204)
-async def delete_document(document_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_document(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
+):
     doc = await _get_doc_or_404(db, document_id)
+    try:
+        assert_org_access(doc.organization_id, current_user)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden")
     await db.delete(doc)
     await db.commit()
 
@@ -164,16 +201,25 @@ async def delete_document(document_id: str, db: AsyncSession = Depends(get_db)):
 # ── Search ────────────────────────────────────────────────────────────────────
 
 @router.post("/search")
-async def search_knowledge(body: SearchRequest):
+async def search_knowledge(body: SearchRequest, current_user: dict | None = Depends(optional_current_user)):
+    org_id = resolve_org_id(current_user)
     results = await rag_service.search_knowledge(
-        body.query, body.top_k, organization_id=DEFAULT_ORG_ID
+        body.query, body.top_k, organization_id=org_id
     )
     return {"query": body.query, "results": results}
 
 
 @router.get("/documents/{document_id}/chunks")
-async def list_chunks(document_id: str, db: AsyncSession = Depends(get_db)):
-    await _get_doc_or_404(db, document_id)
+async def list_chunks(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
+):
+    doc = await _get_doc_or_404(db, document_id)
+    try:
+        assert_org_access(doc.organization_id, current_user)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden")
     result = await db.execute(
         select(KnowledgeChunkORM)
         .where(KnowledgeChunkORM.document_id == document_id)
@@ -191,11 +237,19 @@ async def list_chunks(document_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/chunks/{chunk_id}")
-async def get_chunk(chunk_id: str, db: AsyncSession = Depends(get_db)):
+async def get_chunk(
+    chunk_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
+):
     result = await db.execute(select(KnowledgeChunkORM).where(KnowledgeChunkORM.id == chunk_id))
     chunk = result.scalar_one_or_none()
     if not chunk:
         raise HTTPException(status_code=404, detail="Chunk not found")
+    try:
+        assert_org_access(chunk.organization_id, current_user)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return {
         "id": chunk.id, "document_id": chunk.document_id,
         "chunk_index": chunk.chunk_index, "content": chunk.content,
@@ -208,7 +262,7 @@ async def get_chunk(chunk_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/ingest-docs")
-async def ingest_sample_docs():
+async def ingest_sample_docs(current_user: dict | None = Depends(optional_current_user)):
     return await rag_service.ingest_documents()
 
 

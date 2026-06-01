@@ -4,14 +4,14 @@ from app.repositories import ticket_repository
 from app.core.ws_manager import manager
 
 
-async def create_ticket(db: AsyncSession, data: TicketCreate):
-    ticket = await ticket_repository.create(db, data)
+async def create_ticket(db: AsyncSession, data: TicketCreate, current_user: dict | None = None):
+    ticket = await ticket_repository.create(db, data, current_user=current_user)
     await manager.broadcast_ticket({"event": "ticket_created", "ticket_id": ticket.id, "status": ticket.status})
     return ticket
 
 
-async def get_all_tickets(db: AsyncSession, filters: TicketFilters):
-    return await ticket_repository.get_all(db, filters)
+async def get_all_tickets(db: AsyncSession, filters: TicketFilters, current_user: dict | None = None):
+    return await ticket_repository.get_all(db, filters, current_user=current_user)
 
 
 async def get_ticket(db: AsyncSession, ticket_id: str):
