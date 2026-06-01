@@ -116,6 +116,18 @@ Output schema:
         {"category": state["category"], "intent": "unknown", "confidence": 0.5},
     )
 
+    # Handle potential LLM-requested tool calls (function-calling like behavior)
+    try:
+        from app.ai_engine.tool_integration import handle_llm_tool_requests
+        tool_results = await handle_llm_tool_requests(state, result.content)
+        if tool_results:
+            # Attach to state
+            state_tool_calls = state.get("tool_calls", [])
+            state_tool_calls.append(tool_results)
+            state["tool_calls"] = state_tool_calls
+    except Exception:
+        pass
+
     step = await _emit(state, "classify_ticket",
         f"Category: {parsed['category']}, intent: {parsed['intent']}",
         {"confidence": parsed["confidence"]})
