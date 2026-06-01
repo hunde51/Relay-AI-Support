@@ -15,7 +15,10 @@ export class ApiError extends Error {
 }
 
 async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, init);
+  const headers = new Headers(init?.headers as HeadersInit);
+  const token = typeof window !== "undefined" ? (localStorage.getItem("VITE_CURRENT_USER_TOKEN") ?? import.meta.env.VITE_CURRENT_USER_TOKEN) : import.meta.env.VITE_CURRENT_USER_TOKEN;
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(input, { ...(init ?? {}), headers });
   const body = await response.json().catch(() => null);
   if (!response.ok) throw new ApiError(response.status, body);
   return body as T;
