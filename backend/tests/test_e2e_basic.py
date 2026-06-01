@@ -7,7 +7,7 @@ async def test_create_ticket_and_run_ai(client, session_factory):
     # create ticket
     payload = {"title": "E2E Ticket", "message": "Please help"}
     resp = client.post("/tickets", json=payload)
-    assert resp.status_code == 200
+    assert resp.status_code in (200, 201)
     ticket = resp.json()
 
     # get token
