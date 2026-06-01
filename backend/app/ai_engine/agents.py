@@ -101,7 +101,6 @@ async def load_ticket_context(state: AgentState) -> AgentState:
 # ── Node 2 ────────────────────────────────────────────────────────────────────
 
 async def classify_ticket(state: AgentState) -> AgentState:
-    llm = get_llm()
     prompt = f"""Classify this support ticket. Reply with JSON only.
 
 Title: {state['title']}
@@ -110,11 +109,9 @@ Message: {state['message']}
 Output schema:
 {{"category": "billing|technical|account|general", "intent": "short_snake_case_intent", "confidence": 0.0-1.0}}"""
 
-    result = await llm.ainvoke(prompt)
-    parsed = _parse_json(
-        result.content,
-        {"category": state["category"], "intent": "unknown", "confidence": 0.5},
-    )
+    from app.ai_engine.prompts import ClassifyOutput, render_and_validate
+
+    parsed = await render_and_validate(prompt, ClassifyOutput, {"category": state["category"], "intent": "unknown", "confidence": 0.5})
 
     # Handle potential LLM-requested tool calls (function-calling like behavior)
     try:
@@ -154,11 +151,9 @@ Priority: {state['priority']}
 Output schema:
 {{"sentiment": "neutral|frustrated|angry|satisfied", "urgency": "low|medium|high", "sla_risk": true|false, "confidence": 0.0-1.0}}"""
 
-    result = await llm.ainvoke(prompt)
-    parsed = _parse_json(
-        result.content,
-        {"sentiment": "neutral", "urgency": "medium", "sla_risk": False, "confidence": 0.5},
-    )
+    from app.ai_engine.prompts import SentimentOutput, render_and_validate
+
+    parsed = await render_and_validate(prompt, SentimentOutput, {"sentiment": "neutral", "urgency": "medium", "sla_risk": False, "confidence": 0.5})
 
     step = await _emit(state, "detect_sentiment_and_urgency",
         f"Sentiment: {parsed['sentiment']}, urgency: {parsed['urgency']}",
@@ -239,12 +234,12 @@ async def check_customer_history(state: AgentState) -> AgentState:
 # ── Node 6 ────────────────────────────────────────────────────────────────────
 
 async def decide_next_action(state: AgentState) -> AgentState:
-    llm = get_llm()
     knowledge_text = "\n".join(
         f"[{r['source']}] {r['content']}" for r in state["knowledge_results"]
     ) or "No relevant knowledge found."
 
-    prompt = f"""You are RelayAI Support. Decide the next action for this ticket.
+    prompt = f"""{BASE_SYSTEM_PROMPT}\n
+You are RelayAI Support. Decide the next action for this ticket.
 
 Ticket: {state['title']} — {state['message']}
 Category: {state['classified_category']} | Intent: {state['intent']}
@@ -267,11 +262,9 @@ Rules:
 Reply with JSON only:
 {{"decision": "...", "confidence": 0.0-1.0, "risk_level": "low|medium|high", "reason": "short reason"}}"""
 
-    result = await llm.ainvoke(prompt)
-    parsed = _parse_json(
-        result.content,
-        {"decision": "escalate", "confidence": 0.5, "risk_level": "medium", "reason": "parse error"},
-    )
+    from app.ai_engine.prompts import render_and_validate_decision, BASE_SYSTEM_PROMPT
+
+    parsed = await render_and_validate_decision(prompt, {"decision": "escalate", "confidence": 0.5, "risk_level": "medium", "reason": "parse error"})
 
     # Force high risk for billing/account regardless of LLM output
     category = state["classified_category"]
@@ -369,11 +362,9 @@ Reason for escalation: {state['decision_reason']}
 Reply with JSON only:
 {{"team": "billing|technical|account|general", "reason": "one sentence", "internal_note": "2-3 sentence note for the agent"}}"""
 
-    result = await llm.ainvoke(prompt)
-    parsed = _parse_json(
-        result.content,
-        {"team": state["classified_category"], "reason": state["decision_reason"], "internal_note": "Escalated for manual review."},
-    )
+    from app.ai_engine.prompts import EscalationOutput, render_and_validate
+
+    parsed = await render_and_validate(prompt, EscalationOutput, {"team": state["classified_category"], "reason": state["decision_reason"], "internal_note": "Escalated for manual review."})
 
     step = await _emit(state, "prepare_escalation",
         f"Escalating to {parsed['team']} team: {parsed['reason']}")
@@ -406,8 +397,9 @@ Check:
 Output schema:
 {{"valid": true|false, "issues": ["issue1", "issue2"]}}"""
 
-    result = await llm.ainvoke(prompt)
-    parsed = _parse_json(result.content, {"valid": True, "issues": []})
+    from app.ai_engine.prompts import ValidateOutput, render_and_validate
+
+    parsed = await render_and_validate(prompt, ValidateOutput, {"valid": True, "issues": []})
 
     step = await _emit(state, "validate_response",
         f"Valid: {parsed['valid']}" + (f", issues: {parsed['issues']}" if parsed.get("issues") else ""))
