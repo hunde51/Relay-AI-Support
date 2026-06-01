@@ -1,10 +1,12 @@
 import { Bell, Search, ChevronDown } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 interface TopbarProps {
   onOpenCommand: () => void;
 }
 
 export function Topbar({ onOpenCommand }: TopbarProps) {
+  const auth = useAuth();
   return (
     <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-background/80 px-4 backdrop-blur-md md:px-6 sticky top-0 z-30">
       <button
@@ -23,14 +25,47 @@ export function Topbar({ onOpenCommand }: TopbarProps) {
           <Bell className="h-4 w-4" />
           <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary" />
         </button>
-
-        <button className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 transition-colors hover:bg-card">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-primary/40 to-info/40 text-xs font-medium text-foreground">
-            AR
-          </div>
-          <span className="hidden sm:block text-sm">Alex R.</span>
-          <ChevronDown className="hidden sm:block h-3.5 w-3.5 text-muted-foreground" />
-        </button>
+        {auth.token ? (
+          <>
+            <button className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 transition-colors hover:bg-card">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-primary/40 to-info/40 text-xs font-medium text-foreground">
+                AR
+              </div>
+              <span className="hidden sm:block text-sm">Alex R.</span>
+              <ChevronDown className="hidden sm:block h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+            <button onClick={() => auth.logout()} className="ml-2 rounded bg-red-600 px-3 py-1 text-white text-sm">Logout</button>
+          </>
+        ) : (
+          <button
+            onClick={async () => {
+              const userId = prompt("User ID", "dev-user");
+              if (!userId) return;
+              const org = prompt("Organization ID", "org-default");
+              if (!org) return;
+              const role = prompt("Role", "agent") || "agent";
+              try {
+                const resp = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"}/auth/token`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ user_id: userId, organization_id: org, role }),
+                });
+                const body = await resp.json();
+                if (resp.ok && body.access_token) {
+                  auth.login(body.access_token);
+                  window.location.reload();
+                } else {
+                  alert("Login failed");
+                }
+              } catch (e) {
+                alert("Login error");
+              }
+            }}
+            className="rounded bg-primary px-3 py-1 text-white text-sm"
+          >
+            Login
+          </button>
+        )}
       </div>
     </header>
   );

@@ -15,6 +15,12 @@ try:
 except Exception:
     jwt = None
     _HAS_PYJWT = False
+try:
+    import aioredis  # type: ignore
+    _HAS_AIREDIS = True
+except Exception:
+    aioredis = None
+    _HAS_AIREDIS = False
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -77,9 +83,33 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.max_requests = max_requests
         self.window = window_seconds
         self._buckets: Dict[str, list[float]] = defaultdict(list)
+        # Redis client if configured
+        self._redis = None
+        if _HAS_AIREDIS and settings.REDIS_URL:
+            try:
+                self._redis = aioredis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
+            except Exception:
+                self._redis = None
 
     async def dispatch(self, request: Request, call_next: Callable):
         ident = request.client.host if request.client else "unknown"
+
+        # Redis-backed fixed-window counter
+        if self._redis:
+            try:
+                current_window = int(time.time() // self.window)
+                key = f"rl:{ident}:{current_window}"
+                cnt = await self._redis.incr(key)
+                if cnt == 1:
+                    # set expiry so key auto-expires after window
+                    await self._redis.expire(key, int(self.window) + 1)
+                if cnt > self.max_requests:
+                    return JSONResponse(status_code=429, content={"error": "rate_limited"})
+            except Exception:
+                # on redis errors, fallback to in-memory
+                pass
+
+        # fallback in-memory sliding window
         now = time.time()
         window_start = now - self.window
         bucket = self._buckets[ident]
