@@ -116,7 +116,9 @@ Output schema:
     # Handle potential LLM-requested tool calls (function-calling like behavior)
     try:
         from app.ai_engine.tool_integration import handle_llm_tool_requests
-        tool_results = await handle_llm_tool_requests(state, result.content)
+        # `parsed` contains the validated LLM output; if tool integration expects raw content,
+        # pass the serialized JSON string. Prefer passing `parsed` for safety.
+        tool_results = await handle_llm_tool_requests(state, parsed)
         if tool_results:
             # Attach to state
             state_tool_calls = state.get("tool_calls", [])

@@ -1,13 +1,29 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+import sys
 
 
 class Settings(BaseSettings):
     DATABASE_URL: str
-    JWT_SECRET: str = "changeme"
-    GEMINI_API_KEY: str | None = None
+    # Safe-ish dev fallback so local startup and tests do not crash when the
+    # secret is omitted. Override this in any real deployment.
+    JWT_SECRET: str = "dev-only-jwt-secret-change-me-32chars"
+    GEMINI_API_KEY: str
     REDIS_URL: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("JWT_SECRET")
+    def jwt_must_be_strong(cls, v: str):
+        if not v or len(v) < 32:
+            raise ValueError("JWT_SECRET must be at least 32 characters")
+        return v
+
+    @field_validator("DATABASE_URL")
+    def db_url_must_be_valid(cls, v: str):
+        if not v.startswith(("postgresql", "sqlite", "mysql")):
+            raise ValueError("DATABASE_URL must be a valid DB url (postgresql|sqlite|mysql)")
+        return v
 
 
 def require_gemini_api_key() -> str:
@@ -16,4 +32,8 @@ def require_gemini_api_key() -> str:
     return settings.GEMINI_API_KEY
 
 
-settings = Settings()
+try:
+    settings = Settings()
+except Exception as e:
+    print("Fatal configuration error:", e)
+    sys.exit(1)

@@ -104,7 +104,7 @@ async def get_tool_calls(run_id: str, db: AsyncSession = Depends(get_db)):
     ]
 
 
-
+@router.get("/runs/{run_id}/steps")
 async def get_steps(run_id: str, db: AsyncSession = Depends(get_db)):
     steps = await ai_service.get_run_steps(db, run_id)
     return [

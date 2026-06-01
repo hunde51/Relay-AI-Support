@@ -31,7 +31,7 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://relay:relay@postgres:5432/relayai
       - REDIS_URL=redis://redis:6379/0
-      - JWT_SECRET=please-change-me
+      - JWT_SECRET=dev-only-jwt-secret-change-me-32chars
     depends_on:
       - postgres
       - redis
