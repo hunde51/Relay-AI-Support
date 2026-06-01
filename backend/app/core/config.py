@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     # Safe-ish dev fallback so local startup and tests do not crash when the
     # secret is omitted. Override this in any real deployment.
     JWT_SECRET: str = "dev-only-jwt-secret-change-me-32chars"
-    GEMINI_API_KEY: str
+    GEMINI_API_KEY: str | None = None
     REDIS_URL: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

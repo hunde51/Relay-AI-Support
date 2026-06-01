@@ -24,6 +24,16 @@ async def ws_ai_stream(ws: WebSocket, ticket_id: str):
         manager.disconnect_ai(ws, ticket_id)
 
 
+@router.websocket("/ws/ai-runs/{ticket_id}")
+async def ws_ai_runs(ws: WebSocket, ticket_id: str):
+    await manager.connect_ai(ws, ticket_id)
+    try:
+        while True:
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect_ai(ws, ticket_id)
+
+
 @router.websocket("/ws/notifications")
 async def ws_notifications(ws: WebSocket):
     await manager.connect_notifications(ws)

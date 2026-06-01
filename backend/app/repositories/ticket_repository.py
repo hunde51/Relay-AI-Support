@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import TicketEventORM, TicketMessageORM, TicketORM
-from app.db.seed import DEFAULT_ORG_ID
+from app.core.tenant import resolve_org_id
 from app.schemas.ticket import MessageCreate, TicketCreate, TicketFilters, TicketUpdate
 
 
@@ -14,10 +14,10 @@ def _utc_now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-async def create(db: AsyncSession, data: TicketCreate) -> TicketORM:
+async def create(db: AsyncSession, data: TicketCreate, current_user: dict | None = None) -> TicketORM:
     ticket = TicketORM(
         id=f"TKT-{uuid4().hex[:6].upper()}",
-        organization_id=DEFAULT_ORG_ID,
+        organization_id=resolve_org_id(current_user),
         title=data.title,
         message=data.message,
         priority=data.priority,
@@ -40,8 +40,8 @@ async def create(db: AsyncSession, data: TicketCreate) -> TicketORM:
     return ticket
 
 
-async def get_all(db: AsyncSession, filters: TicketFilters):
-    q = select(TicketORM)
+async def get_all(db: AsyncSession, filters: TicketFilters, current_user: dict | None = None):
+    q = select(TicketORM).where(TicketORM.organization_id == resolve_org_id(current_user))
     if filters.status:
         q = q.where(TicketORM.status == filters.status)
     if filters.priority:

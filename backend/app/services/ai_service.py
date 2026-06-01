@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.db.models import AIRunORM, AIStepORM, AISuggestedActionORM, AuditLogORM, UserORM
-from app.db.seed import DEFAULT_ORG_ID
 from app.ai_engine.graph import agent_graph
 from app.ai_engine.state import AgentState
 from app.repositories import ticket_repository
@@ -29,7 +28,7 @@ async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
     # Create the AI run record upfront so nodes can reference it
     ai_run = AIRunORM(
         ticket_id=ticket_id,
-        organization_id=DEFAULT_ORG_ID,
+        organization_id=ticket.organization_id,
         status="running",
         started_at=_utc_now(),
     )
@@ -39,7 +38,7 @@ async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
     initial_state: AgentState = {
         # Required inputs
         "ticket_id": ticket_id,
-        "organization_id": DEFAULT_ORG_ID,
+        "organization_id": ticket.organization_id or "",
         "ai_run_id": ai_run.id,
         "db": db,
         # Ticket fields (refreshed by load_ticket_context node)
@@ -124,6 +123,15 @@ async def get_suggested_actions(db: AsyncSession, ticket_id: str) -> list:
     return result.scalars().all()
 
 
+async def get_suggested_actions_for_run(db: AsyncSession, run_id: str) -> list:
+    result = await db.execute(
+        select(AISuggestedActionORM)
+        .where(AISuggestedActionORM.ai_run_id == run_id)
+        .order_by(AISuggestedActionORM.created_at.desc())
+    )
+    return result.scalars().all()
+
+
 async def approve_action(db: AsyncSession, action_id: str, actor_user_id: str | None = None) -> AISuggestedActionORM | None:
     result = await db.execute(select(AISuggestedActionORM).where(AISuggestedActionORM.id == action_id))
     action = result.scalar_one_or_none()
@@ -137,6 +145,7 @@ async def approve_action(db: AsyncSession, action_id: str, actor_user_id: str | 
             return None
 
     action.approval_status = "approved"
+    action.approved_by_user_id = actor_user_id
     action.approved_at = _utc_now()
     await db.flush()
 
@@ -172,6 +181,7 @@ async def reject_action(db: AsyncSession, action_id: str, actor_user_id: str | N
             return None
 
     action.approval_status = "rejected"
+    action.rejected_by_user_id = actor_user_id
     action.rejected_at = _utc_now()
     await db.flush()
 
