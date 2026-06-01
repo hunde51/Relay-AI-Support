@@ -9,6 +9,7 @@ from app.api.agent import router as agent_router
 from app.api.ai import router as ai_router
 from app.api.auth import router as auth_router
 from app.api.dashboard import router as dashboard_router
+from app.api.notifications import router as notifications_router
 from app.api.websockets import router as ws_router
 from app.core.middleware import AuthMiddleware, StructuredErrorMiddleware, RateLimitMiddleware
 
@@ -34,6 +35,7 @@ app.include_router(agent_router)
 app.include_router(ai_router)
 app.include_router(auth_router)
 app.include_router(dashboard_router)
+app.include_router(notifications_router)
 app.include_router(ws_router)
 
 

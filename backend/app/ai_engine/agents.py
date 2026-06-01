@@ -26,7 +26,7 @@ from sqlalchemy import select
 from app.ai_engine.llm import get_llm
 from app.ai_engine.state import AgentState
 from app.core.ws_manager import manager
-from app.db.models import AIStepORM, TicketORM, TicketMessageORM, CustomerORM, AIRunORM, AISuggestedActionORM
+from app.db.models import AIStepORM, TicketORM, TicketMessageORM, CustomerORM, AIRunORM, AISuggestedActionORM, AIResponseORM, NotificationORM
 from app.services.rag_service import search_knowledge
 from app.services.tool_service import invoke_tool
 
@@ -360,6 +360,18 @@ Knowledge:
 {knowledge_text}"""
 
     result = await llm.ainvoke(prompt)
+
+    db = state["db"]
+    response = AIResponseORM(
+        ai_run_id=state["ai_run_id"],
+        ticket_id=state["ticket_id"],
+        body=result.content.strip(),
+        citations={"chunk_ids": citations},
+        confidence=str(state.get("decision_confidence", state.get("confidence", 0.5))),
+    )
+    db.add(response)
+    await db.flush()
+
     step = await _emit(state, "draft_response", "Response drafted",
         {"response_preview": result.content[:120]})
 
@@ -381,6 +393,18 @@ Ticket: {state['title']} — {state['message']}
 Intent: {state['intent']}"""
 
     result = await llm.ainvoke(prompt)
+
+    db = state["db"]
+    response = AIResponseORM(
+        ai_run_id=state["ai_run_id"],
+        ticket_id=state["ticket_id"],
+        body=result.content.strip(),
+        citations=[],
+        confidence=str(state.get("decision_confidence", state.get("confidence", 0.5))),
+    )
+    db.add(response)
+    await db.flush()
+
     step = await _emit(state, "draft_clarifying_question", "Clarifying question drafted")
 
     return {
@@ -407,6 +431,17 @@ Reply with JSON only:
     from app.ai_engine.prompts import EscalationOutput, render_and_validate
 
     parsed = await render_and_validate(prompt, EscalationOutput, {"team": state["classified_category"], "reason": state["decision_reason"], "internal_note": "Escalated for manual review."})
+
+    db = state["db"]
+    response = AIResponseORM(
+        ai_run_id=state["ai_run_id"],
+        ticket_id=state["ticket_id"],
+        body=parsed["internal_note"],
+        citations=[],
+        confidence=str(state.get("decision_confidence", state.get("confidence", 0.5))),
+    )
+    db.add(response)
+    await db.flush()
 
     step = await _emit(state, "prepare_escalation",
         f"Escalating to {parsed['team']} team: {parsed['reason']}")
@@ -537,6 +572,18 @@ async def persist_ai_run(state: AgentState) -> AgentState:
 # ── Node 14 ───────────────────────────────────────────────────────────────────
 
 async def notify_frontend(state: AgentState) -> AgentState:
+    db = state["db"]
+    if state.get("organization_id"):
+        notification = NotificationORM(
+            organization_id=state["organization_id"],
+            user_id=None,
+            type="ai_run_completed",
+            title=f"AI run completed for ticket {state['ticket_id']}",
+            body=f"Decision: {state.get('decision', 'no_action')} | Approval required: {state.get('requires_approval', False)}",
+        )
+        db.add(notification)
+        await db.commit()
+
     await manager.broadcast_ticket({
         "event": "ai_run_completed",
         "ticket_id": state["ticket_id"],
