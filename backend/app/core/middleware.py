@@ -3,6 +3,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Callable
 from app.core.config import settings
 import base64
+import logging
+from fastapi.responses import JSONResponse
+from fastapi import HTTPException
+import time
+from collections import defaultdict
+from typing import Dict
 try:
     import jwt  # type: ignore
     _HAS_PYJWT = True
@@ -43,3 +49,44 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
         return response
+
+
+class StructuredErrorMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: Callable):
+        logger = logging.getLogger("app.middleware")
+        logger.info("%s %s", request.method, request.url)
+        try:
+            response = await call_next(request)
+            logger.info("%s %s -> %s", request.method, request.url, response.status_code)
+            return response
+        except HTTPException as he:
+            return JSONResponse(status_code=he.status_code, content={"error": he.detail})
+        except Exception as e:
+            logger.exception("Unhandled exception processing request")
+            return JSONResponse(status_code=500, content={"error": "internal_server_error"})
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Simple in-memory rate limiter with Redis-ready placeholder.
+
+    Note: In-memory limiter is suitable for single-process development only.
+    For production, configure Redis and replace counters with a centralized store.
+    """
+    def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
+        super().__init__(app)
+        self.max_requests = max_requests
+        self.window = window_seconds
+        self._buckets: Dict[str, list[float]] = defaultdict(list)
+
+    async def dispatch(self, request: Request, call_next: Callable):
+        ident = request.client.host if request.client else "unknown"
+        now = time.time()
+        window_start = now - self.window
+        bucket = self._buckets[ident]
+        # purge old
+        while bucket and bucket[0] < window_start:
+            bucket.pop(0)
+        if len(bucket) >= self.max_requests:
+            return JSONResponse(status_code=429, content={"error": "rate_limited"})
+        bucket.append(now)
+        return await call_next(request)
