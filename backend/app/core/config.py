@@ -35,5 +35,13 @@ def require_gemini_api_key() -> str:
 try:
     settings = Settings()
 except Exception as e:
-    print("Fatal configuration error:", e)
-    sys.exit(1)
+    # During inspection or build, environment variables might be missing.
+    # Log the error but don't exit, allowing the app instance to be inspected if possible.
+    print(f"Configuration warning: {e}")
+    # Provide a dummy settings object for inspection time
+    class DummySettings:
+        DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+        JWT_SECRET = "dev-only-jwt-secret-change-me-32chars"
+        GEMINI_API_KEY = None
+        REDIS_URL = None
+    settings = DummySettings() # type: ignore

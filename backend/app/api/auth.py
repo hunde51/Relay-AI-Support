@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import base64
 from app.core.config import settings
 
@@ -48,8 +48,8 @@ def issue_token(req: LoginRequest):
             "sub": req.user_id,
             "org": req.organization_id,
             "role": req.role,
-            "iat": datetime.utcnow(),
-            "exp": datetime.utcnow() + timedelta(hours=8),
+            "iat": datetime.now(timezone.utc),
+            "exp": datetime.now(timezone.utc) + timedelta(hours=8),
         }
         token = jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
     else:

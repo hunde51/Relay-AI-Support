@@ -15,6 +15,14 @@ from app.core.middleware import AuthMiddleware, StructuredErrorMiddleware, RateL
 
 app = FastAPI(title="RelayAI Support API")
 
+@app.get("/")
+def root():
+    return {
+        "message": "RelayAI Support API is running",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
 app.add_middleware(AuthMiddleware)
 app.add_middleware(StructuredErrorMiddleware)
 app.add_middleware(RateLimitMiddleware, max_requests=200, window_seconds=60)
