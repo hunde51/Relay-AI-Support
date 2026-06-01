@@ -135,3 +135,11 @@ async def reject_action(action_id: str, db: AsyncSession = Depends(get_db)):
     if not action:
         raise HTTPException(status_code=404, detail="Action not found")
     return {"id": action.id, "approval_status": action.approval_status}
+
+
+@router.post("/actions/{action_id}/execute")
+async def execute_action(action_id: str, db: AsyncSession = Depends(get_db)):
+    result = await ai_service.execute_suggested_action(db, action_id)
+    if result.get("error"):
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result

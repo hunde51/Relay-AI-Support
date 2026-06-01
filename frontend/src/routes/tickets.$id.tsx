@@ -12,7 +12,7 @@ import {
   keys,
   useTicketMessages, useTicketTimeline, useTicketActions,
   useResolveTicket, useEscalateTicket, useSendMessage, useRunAI,
-  useApproveAction, useRejectAction,
+  useApproveAction, useRejectAction, useExecuteAction,
 } from "@/lib/queries";
 
 export const Route = createFileRoute("/tickets/$id")({
@@ -69,6 +69,7 @@ function TicketDetail() {
   const runAI = useRunAI(ticket.id);
   const approve = useApproveAction(ticket.id);
   const reject = useRejectAction(ticket.id);
+  const execute = useExecuteAction(ticket.id);
 
   const currentTicket: ApiTicket = qc.getQueryData(keys.ticket(ticket.id)) ?? ticket;
 
@@ -236,6 +237,26 @@ function TicketDetail() {
 }
 
 function Row({ k, v }: { k: string; v: string }) {
+
+          {actions.filter((a) => a.approval_status === "approved").length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+              <div className="text-xs font-semibold uppercase tracking-wider">Approved AI Actions</div>
+              {actions.filter((a) => a.approval_status === "approved").map((a) => (
+                <div key={a.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium capitalize">{a.action_type.replace(/_/g, " ")}</span>
+                    <span className="text-xs text-muted-foreground">ready</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => execute.mutate(a.id)} disabled={execute.isPending}
+                      className="flex-1 rounded-md bg-primary/15 text-primary border border-primary/30 py-1 text-xs font-medium hover:bg-primary/20 disabled:opacity-50">
+                      Execute
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
   return (
     <div className="flex justify-between gap-3">
       <span className="text-muted-foreground">{k}</span>

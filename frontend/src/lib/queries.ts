@@ -93,6 +93,14 @@ export const useRejectAction = (ticketId: string) => {
   });
 };
 
+export const useExecuteAction = (ticketId: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (actionId: string) => api.ai.executeAction(actionId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.ticketActions(ticketId) }),
+  });
+};
+
 // ── Knowledge ─────────────────────────────────────────────────────────────────
 export const useKBDocuments = () =>
   useQuery({ queryKey: keys.kbDocuments, queryFn: () => api.knowledge.documents() });

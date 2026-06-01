@@ -53,7 +53,7 @@ register_tool("resolve_ticket", _handler_resolve_ticket, tool_type="controlled")
 register_tool("assign_ticket", _handler_resolve_ticket, tool_type="controlled")
 
 
-async def invoke_tool(db, ai_run_id: str, ticket_id: str | None, tool_name: str, arguments: dict | None = None, requester_user_id: str | None = None, confidence: float | None = None) -> dict:
+async def invoke_tool(db, ai_run_id: str, ticket_id: str | None, tool_name: str, arguments: dict | None = None, requester_user_id: str | None = None, confidence: float | None = None, force_execute: bool = False) -> dict:
     """Persist a tool call, execute the handler, update the call record, and stream events.
 
     Returns the tool result as a dict.
@@ -88,7 +88,7 @@ async def invoke_tool(db, ai_run_id: str, ticket_id: str | None, tool_name: str,
         if auto_resolve and confidence is not None and confidence >= threshold:
             should_execute = True
 
-        if not should_execute:
+        if not should_execute and not force_execute:
             # Create suggested action instead of executing
             action = AISuggestedActionORM(
                 ai_run_id=ai_run_id,

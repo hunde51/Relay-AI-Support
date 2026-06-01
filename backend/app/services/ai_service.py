@@ -138,3 +138,31 @@ async def reject_action(db: AsyncSession, action_id: str) -> AISuggestedActionOR
     await db.commit()
     await db.refresh(action)
     return action
+
+
+async def execute_suggested_action(db: AsyncSession, action_id: str, executor_user_id: str | None = None) -> dict:
+    result = await db.execute(select(AISuggestedActionORM).where(AISuggestedActionORM.id == action_id))
+    action = result.scalar_one_or_none()
+    if not action:
+        return {"error": "Action not found"}
+
+    if action.requires_approval and action.approval_status != "approved":
+        return {"error": "Action not approved"}
+
+    # Execute the underlying tool using tool_service
+    from app.services.tool_service import invoke_tool
+
+    payload = action.payload or {}
+    arguments = payload.get("arguments") or {}
+
+    # Force execution when running approved suggested action
+    try:
+        res = await invoke_tool(db, action.ai_run_id, action.ticket_id, action.action_type, arguments=arguments, requester_user_id=executor_user_id, force_execute=True)
+        # Mark action as executed in approval_status
+        action.approval_status = "executed"
+        action.approved_by_user_id = executor_user_id
+        action.approved_at = _utc_now()
+        await db.commit()
+        return {"result": res}
+    except Exception as e:
+        return {"error": str(e)}

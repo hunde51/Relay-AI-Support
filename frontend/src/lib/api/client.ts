@@ -242,6 +242,8 @@ export const api = {
       request(`${BASE}/ai/actions/${actionId}/approve`, { method: "POST" }),
     reject: (actionId: string) =>
       request(`${BASE}/ai/actions/${actionId}/reject`, { method: "POST" }),
+    executeAction: (actionId: string) =>
+      request(`${BASE}/ai/actions/${actionId}/execute`, { method: "POST" }),
   },
 
   // Legacy — kept for backward compat with agent.py route
