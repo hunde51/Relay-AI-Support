@@ -238,12 +238,25 @@ export const api = {
     steps: (runId: string) => request<unknown[]>(`${BASE}/ai/runs/${runId}/steps`),
     suggestedActions: (ticketId: string) =>
       request<unknown[]>(`${BASE}/ai/tickets/${ticketId}/suggested-actions`),
-    approve: (actionId: string) =>
-      request(`${BASE}/ai/actions/${actionId}/approve`, { method: "POST" }),
-    reject: (actionId: string) =>
-      request(`${BASE}/ai/actions/${actionId}/reject`, { method: "POST" }),
-    executeAction: (actionId: string) =>
-      request(`${BASE}/ai/actions/${actionId}/execute`, { method: "POST" }),
+    approve: (actionId: string, actorUserId?: string) =>
+      request(`${BASE}/ai/actions/${actionId}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actor_user_id: actorUserId ?? import.meta.env.VITE_CURRENT_USER_ID ?? null }),
+      }),
+    reject: (actionId: string, actorUserId?: string) =>
+      request(`${BASE}/ai/actions/${actionId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actor_user_id: actorUserId ?? import.meta.env.VITE_CURRENT_USER_ID ?? null }),
+      }),
+    executeAction: (actionId: string, executorUserId?: string) =>
+      request(`${BASE}/ai/actions/${actionId}/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ executor_user_id: executorUserId ?? import.meta.env.VITE_CURRENT_USER_ID ?? null }),
+      }),
+    audits: (ticketId: string) => request(`${BASE}/ai/tickets/${ticketId}/audits`),
   },
 
   // Legacy — kept for backward compat with agent.py route

@@ -70,6 +70,7 @@ function TicketDetail() {
   const approve = useApproveAction(ticket.id);
   const reject = useRejectAction(ticket.id);
   const execute = useExecuteAction(ticket.id);
+  const { data: audits = [] } = useTicketAudits(ticket.id);
 
   const currentTicket: ApiTicket = qc.getQueryData(keys.ticket(ticket.id)) ?? ticket;
 
@@ -253,6 +254,21 @@ function Row({ k, v }: { k: string; v: string }) {
                       Execute
                     </button>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {audits.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+              <div className="text-xs font-semibold uppercase tracking-wider">Audit Trail</div>
+              {audits.map((a: any) => (
+                <div key={a.id} className="text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between">
+                    <div className="capitalize">{a.action.replace(/_/g, " ")}</div>
+                    <div className="text-[10px]">{new Date(a.created_at).toLocaleString()}</div>
+                  </div>
+                  <div className="text-[11px]">By: {a.actor_user_id ?? a.actor_type}</div>
                 </div>
               ))}
             </div>

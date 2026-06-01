@@ -38,6 +38,9 @@ export const useTicketTimeline = (id: string) =>
 export const useTicketActions = (id: string) =>
   useQuery({ queryKey: keys.ticketActions(id), queryFn: () => api.ai.suggestedActions(id) });
 
+export const useTicketAudits = (id: string) =>
+  useQuery({ queryKey: ["ticket", id, "audits"], queryFn: () => api.ai.audits(id) });
+
 export const useResolveTicket = (id: string) => {
   const qc = useQueryClient();
   return useMutation({

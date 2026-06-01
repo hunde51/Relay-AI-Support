@@ -4,6 +4,8 @@ from sqlalchemy import select
 from app.db.database import get_db
 from app.db.models import AIRunORM, AIToolCallORM
 from app.services import ai_service
+from app.db.models import AuditLogORM
+from sqlalchemy import select
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -150,3 +152,24 @@ async def execute_action(action_id: str, payload: dict | None = None, db: AsyncS
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
     return result
+
+
+@router.get("/tickets/{ticket_id}/audits")
+async def get_audit_logs(ticket_id: str, db: AsyncSession = Depends(get_db)):
+    # Return audit logs where metadata.ticket_id matches
+    q = select(AuditLogORM).where(AuditLogORM.metadata_json["ticket_id"].astext == ticket_id).order_by(AuditLogORM.created_at.desc())
+    result = await db.execute(q)
+    logs = result.scalars().all()
+    return [
+        {
+            "id": l.id,
+            "actor_type": l.actor_type,
+            "actor_user_id": l.actor_user_id,
+            "action": l.action,
+            "resource_type": l.resource_type,
+            "resource_id": l.resource_id,
+            "metadata": l.metadata_json,
+            "created_at": l.created_at,
+        }
+        for l in logs
+    ]
