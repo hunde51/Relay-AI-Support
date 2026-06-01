@@ -7,6 +7,7 @@ from app.db.seed import DEFAULT_ORG_ID
 from app.ai_engine.graph import agent_graph
 from app.ai_engine.state import AgentState
 from app.repositories import ticket_repository
+from app.db.models import OrganizationSettingsORM
 
 
 def _utc_now():
@@ -17,6 +18,13 @@ async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
     ticket = await ticket_repository.get_by_id(db, ticket_id)
     if not ticket:
         return {"error": "Ticket not found"}
+
+    # Respect organization-level AI enablement (feature flag)
+    if ticket.organization_id:
+        res = await db.execute(select(OrganizationSettingsORM).where(OrganizationSettingsORM.organization_id == ticket.organization_id))
+        settings = res.scalar_one_or_none()
+        if settings and not settings.ai_enabled:
+            return {"error": "AI disabled for organization"}
 
     # Create the AI run record upfront so nodes can reference it
     ai_run = AIRunORM(

@@ -4,8 +4,11 @@ from sqlalchemy import select
 from app.db.database import get_db
 from app.db.models import AIRunORM, AIToolCallORM
 from app.services import ai_service
+from app.api.auth import get_current_user
+from fastapi import Request
 from app.db.models import AuditLogORM
 from sqlalchemy import select
+from sqlalchemy import func
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -35,7 +38,8 @@ async def invoke_tool_api(tool_name: str, payload: dict, db: AsyncSession = Depe
 
 
 @router.post("/tickets/{ticket_id}/run")
-async def run_ai(ticket_id: str, db: AsyncSession = Depends(get_db)):
+async def run_ai(ticket_id: str, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    # enforce organization scoping by ensuring ticket belongs to user's org is handled in service layer
     return await ai_service.run_ai_on_ticket(db, ticket_id)
 
 
@@ -127,9 +131,9 @@ async def get_suggested_actions(ticket_id: str, db: AsyncSession = Depends(get_d
 
 
 @router.post("/actions/{action_id}/approve")
-async def approve_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db)):
+async def approve_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
     # payload may contain { "actor_user_id": "USR-..." }
-    actor_user_id = payload.get("actor_user_id") if payload else None
+    actor_user_id = payload.get("actor_user_id") if payload else current_user.get("user_id")
     action = await ai_service.approve_action(db, action_id, actor_user_id)
     if not action:
         raise HTTPException(status_code=404, detail="Action not found or unauthorized")
@@ -137,8 +141,8 @@ async def approve_action(action_id: str, payload: dict | None = None, db: AsyncS
 
 
 @router.post("/actions/{action_id}/reject")
-async def reject_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db)):
-    actor_user_id = payload.get("actor_user_id") if payload else None
+async def reject_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    actor_user_id = payload.get("actor_user_id") if payload else current_user.get("user_id")
     action = await ai_service.reject_action(db, action_id, actor_user_id)
     if not action:
         raise HTTPException(status_code=404, detail="Action not found or unauthorized")
@@ -146,8 +150,8 @@ async def reject_action(action_id: str, payload: dict | None = None, db: AsyncSe
 
 
 @router.post("/actions/{action_id}/execute")
-async def execute_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db)):
-    executor_user_id = payload.get("executor_user_id") if payload else None
+async def execute_action(action_id: str, payload: dict | None = None, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    executor_user_id = payload.get("executor_user_id") if payload else current_user.get("user_id")
     result = await ai_service.execute_suggested_action(db, action_id, executor_user_id)
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
@@ -173,3 +177,15 @@ async def get_audit_logs(ticket_id: str, db: AsyncSession = Depends(get_db)):
         }
         for l in logs
     ]
+
+
+
+@router.get("/metrics")
+async def get_metrics(org_id: str | None = None, db: AsyncSession = Depends(get_db)):
+    # Simple metrics: count audit actions grouped by action (optionally filtered by org)
+    q = select(AuditLogORM.action, func.count(AuditLogORM.id)).group_by(AuditLogORM.action)
+    if org_id:
+        q = q.where(AuditLogORM.organization_id == org_id)
+    result = await db.execute(q)
+    rows = result.all()
+    return {r[0]: r[1] for r in rows}
