@@ -4,9 +4,21 @@ from app.repositories import ticket_repository
 from app.core.ws_manager import manager
 
 
+async def _fire_webhook(db: AsyncSession, ticket, event_type: str, extra: dict | None = None):
+    if not ticket or not ticket.organization_id:
+        return
+    try:
+        from app.services.webhook_service import trigger_webhook
+        payload = {"event": event_type, "ticket_id": ticket.id, **(extra or {})}
+        await trigger_webhook(db, ticket.organization_id, event_type, payload)
+    except Exception:
+        pass
+
+
 async def create_ticket(db: AsyncSession, data: TicketCreate, current_user: dict | None = None):
     ticket = await ticket_repository.create(db, data, current_user=current_user)
     await manager.broadcast_ticket({"event": "ticket_created", "ticket_id": ticket.id, "status": ticket.status})
+    await _fire_webhook(db, ticket, "ticket.created")
     return ticket
 
 
@@ -22,6 +34,7 @@ async def update_ticket(db: AsyncSession, ticket_id: str, data: TicketUpdate):
     ticket = await ticket_repository.update(db, ticket_id, data)
     if ticket:
         await manager.broadcast_ticket({"event": "ticket_updated", "ticket_id": ticket.id, "status": ticket.status})
+        await _fire_webhook(db, ticket, "ticket.updated")
     return ticket
 
 
@@ -29,17 +42,22 @@ async def resolve_ticket(db: AsyncSession, ticket_id: str):
     ticket = await ticket_repository.set_status(db, ticket_id, "resolved", "ticket_resolved")
     if ticket:
         await manager.broadcast_ticket({"event": "ticket_resolved", "ticket_id": ticket.id})
+        await _fire_webhook(db, ticket, "ticket.resolved")
     return ticket
 
 
 async def close_ticket(db: AsyncSession, ticket_id: str):
-    return await ticket_repository.set_status(db, ticket_id, "closed", "ticket_closed")
+    ticket = await ticket_repository.set_status(db, ticket_id, "closed", "ticket_closed")
+    if ticket:
+        await _fire_webhook(db, ticket, "ticket.updated", {"status": "closed"})
+    return ticket
 
 
 async def escalate_ticket(db: AsyncSession, ticket_id: str):
     ticket = await ticket_repository.set_status(db, ticket_id, "in_progress", "ticket_escalated")
     if ticket:
         await manager.broadcast_ticket({"event": "ticket_escalated", "ticket_id": ticket.id})
+        await _fire_webhook(db, ticket, "ticket.updated", {"status": "in_progress"})
     return ticket
 
 
