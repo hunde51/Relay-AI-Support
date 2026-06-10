@@ -12,6 +12,7 @@ from app.api.knowledge import router as knowledge_router
 from app.api.notifications import router as notifications_router
 from app.api.settings import router as settings_router
 from app.api.tickets import router as tickets_router
+from app.api.webhooks import router as webhooks_router
 from app.api.websockets import router as ws_router
 from app.core.middleware import AuthMiddleware, StructuredErrorMiddleware, RateLimitMiddleware
 
@@ -49,6 +50,7 @@ app.include_router(notifications_router)
 app.include_router(ws_router)
 app.include_router(api_keys_router)
 app.include_router(external_router)
+app.include_router(webhooks_router)
 
 
 @app.get("/health")
