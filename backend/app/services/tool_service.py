@@ -71,8 +71,8 @@ async def _handler_get_ticket(db, args: dict):
             "source": ticket.source,
             "sentiment": ticket.sentiment,
             "summary": ticket.summary,
-            "created_at": ticket.created_at,
-            "updated_at": ticket.updated_at,
+            "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
+            "updated_at": ticket.updated_at.isoformat() if ticket.updated_at else None,
         }
     }
 
@@ -90,8 +90,8 @@ async def _handler_get_ticket_messages(db, args: dict):
                 "sender_customer_id": message.sender_customer_id,
                 "body": message.body,
                 "is_internal": message.is_internal,
-                "created_at": message.created_at,
-                "updated_at": message.updated_at,
+                "created_at": message.created_at.isoformat() if message.created_at else None,
+                "updated_at": message.updated_at.isoformat() if message.updated_at else None,
             }
             for message in messages
         ]
@@ -112,7 +112,7 @@ async def _handler_get_ticket_timeline(db, args: dict):
                 "old_value": event.old_value,
                 "new_value": event.new_value,
                 "metadata": event.metadata_json,
-                "created_at": event.created_at,
+                "created_at": event.created_at.isoformat() if event.created_at else None,
             }
             for event in events
         ]
@@ -165,9 +165,9 @@ async def _handler_get_customer_ticket_history(db, args: dict):
                 "status": ticket.status,
                 "priority": ticket.priority,
                 "category": ticket.category,
-                "created_at": ticket.created_at,
-                "resolved_at": ticket.resolved_at,
-                "closed_at": ticket.closed_at,
+                "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
+                "resolved_at": ticket.resolved_at.isoformat() if ticket.resolved_at else None,
+                "closed_at": ticket.closed_at.isoformat() if ticket.closed_at else None,
             }
             for ticket in tickets
         ]

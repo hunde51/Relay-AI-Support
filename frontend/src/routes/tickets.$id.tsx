@@ -10,7 +10,7 @@ import { useAIStream } from "@/hooks/useAIStream";
 import { cn } from "@/lib/utils";
 import {
   keys,
-  useTicketMessages, useTicketTimeline, useTicketActions,
+  useTicketMessages, useTicketTimeline, useTicketActions, useTicketAudits,
   useResolveTicket, useEscalateTicket, useSendMessage, useRunAI,
   useApproveAction, useRejectAction, useExecuteAction,
 } from "@/lib/queries";
@@ -47,10 +47,11 @@ type SuggestedAction = {
   risk_level: string; requires_approval: boolean; approval_status: string;
 };
 
+type AuditEntry = { id: string; action: string; actor_type: string; actor_user_id: string | null; created_at: string };
+
 function TicketDetail() {
   const qc = useQueryClient();
   const initial = Route.useLoaderData() as ApiTicket;
-  // Keep ticket state in query cache so resolve/escalate updates propagate
   const ticket: ApiTicket = qc.getQueryData(keys.ticket(initial.id)) ?? initial;
 
   const [tab, setTab] = useState<"messages" | "timeline">("messages");
@@ -62,6 +63,8 @@ function TicketDetail() {
   const { data: timeline = [] } = useTicketTimeline(ticket.id);
   const { data: rawActions = [] } = useTicketActions(ticket.id);
   const actions = rawActions as SuggestedAction[];
+  const { data: rawAudits = [] } = useTicketAudits(ticket.id);
+  const audits = rawAudits as AuditEntry[];
 
   const resolve = useResolveTicket(ticket.id);
   const escalate = useEscalateTicket(ticket.id);
@@ -70,7 +73,6 @@ function TicketDetail() {
   const approve = useApproveAction(ticket.id);
   const reject = useRejectAction(ticket.id);
   const execute = useExecuteAction(ticket.id);
-  const { data: audits = [] } = useTicketAudits(ticket.id);
 
   const currentTicket: ApiTicket = qc.getQueryData(keys.ticket(ticket.id)) ?? ticket;
 
@@ -91,6 +93,7 @@ function TicketDetail() {
       </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
+        {/* Main panel */}
         <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.3 }} className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="border-b border-border p-5">
@@ -165,8 +168,11 @@ function TicketDetail() {
           )}
         </motion.div>
 
+        {/* Sidebar */}
         <motion.aside initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.3 }} className="space-y-4">
+
+          {/* Action buttons */}
           <div className="rounded-xl border border-border bg-card p-5 space-y-3">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
               <Sparkles className="h-3.5 w-3.5" /> Actions
@@ -189,6 +195,7 @@ function TicketDetail() {
             </div>
           </div>
 
+          {/* Pending AI suggestions */}
           {actions.filter((a) => a.approval_status === "pending").length > 0 && (
             <div className="rounded-xl border border-warning/30 bg-warning/5 p-4 space-y-3">
               <div className="text-xs font-semibold uppercase tracking-wider text-warning">AI Suggestions</div>
@@ -220,8 +227,45 @@ function TicketDetail() {
             </div>
           )}
 
+          {/* Approved AI actions ready to execute */}
+          {actions.filter((a) => a.approval_status === "approved").length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+              <div className="text-xs font-semibold uppercase tracking-wider">Approved AI Actions</div>
+              {actions.filter((a) => a.approval_status === "approved").map((a) => (
+                <div key={a.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium capitalize">{a.action_type.replace(/_/g, " ")}</span>
+                    <span className="text-xs text-muted-foreground">ready</span>
+                  </div>
+                  <button onClick={() => execute.mutate(a.id)} disabled={execute.isPending}
+                    className="w-full rounded-md bg-primary/15 text-primary border border-primary/30 py-1 text-xs font-medium hover:bg-primary/20 disabled:opacity-50">
+                    Execute
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* AI activity stream */}
           <AIActivityPanel liveSteps={activeTicketId ? steps : undefined} connected={connected} />
 
+          {/* Audit trail */}
+          {audits.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+              <div className="text-xs font-semibold uppercase tracking-wider">Audit Trail</div>
+              {audits.map((a) => (
+                <div key={a.id} className="text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between">
+                    <div className="capitalize">{a.action.replace(/_/g, " ")}</div>
+                    <div className="text-[10px]">{new Date(a.created_at).toLocaleString()}</div>
+                  </div>
+                  <div className="text-[11px]">By: {a.actor_user_id ?? a.actor_type}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Metadata */}
           <div className="rounded-xl border border-border bg-card p-5 text-xs space-y-2">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Metadata</div>
             <Row k="Created" v={new Date(currentTicket.created_at).toLocaleString()} />
@@ -238,41 +282,6 @@ function TicketDetail() {
 }
 
 function Row({ k, v }: { k: string; v: string }) {
-
-          {actions.filter((a) => a.approval_status === "approved").length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-              <div className="text-xs font-semibold uppercase tracking-wider">Approved AI Actions</div>
-              {actions.filter((a) => a.approval_status === "approved").map((a) => (
-                <div key={a.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium capitalize">{a.action_type.replace(/_/g, " ")}</span>
-                    <span className="text-xs text-muted-foreground">ready</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => execute.mutate(a.id)} disabled={execute.isPending}
-                      className="flex-1 rounded-md bg-primary/15 text-primary border border-primary/30 py-1 text-xs font-medium hover:bg-primary/20 disabled:opacity-50">
-                      Execute
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {audits.length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-              <div className="text-xs font-semibold uppercase tracking-wider">Audit Trail</div>
-              {audits.map((a: any) => (
-                <div key={a.id} className="text-xs text-muted-foreground">
-                  <div className="flex items-center justify-between">
-                    <div className="capitalize">{a.action.replace(/_/g, " ")}</div>
-                    <div className="text-[10px]">{new Date(a.created_at).toLocaleString()}</div>
-                  </div>
-                  <div className="text-[11px]">By: {a.actor_user_id ?? a.actor_type}</div>
-                </div>
-              ))}
-            </div>
-          )}
   return (
     <div className="flex justify-between gap-3">
       <span className="text-muted-foreground">{k}</span>

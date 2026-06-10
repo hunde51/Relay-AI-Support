@@ -39,7 +39,7 @@ function KB() {
 
   useEffect(() => {
     if (!selectedDocId && docs.length > 0) {
-      setSelectedDocId(docs[0].id);
+      setSelectedDocId((docs as KBDoc[])[0].id);
     }
   }, [docs, selectedDocId]);
 
