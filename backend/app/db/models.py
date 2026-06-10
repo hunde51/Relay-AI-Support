@@ -35,4 +35,6 @@ from app.models import (  # noqa: F401
     ApiKeyORM,
     AuditLogORM,
     NotificationORM,
+    WebhookEndpointORM,
+    WebhookDeliveryORM,
 )
