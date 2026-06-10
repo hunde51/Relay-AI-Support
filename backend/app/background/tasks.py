@@ -63,6 +63,22 @@ async def _process_document_ingestion_async(job_id: str) -> dict:
 
 
 @celery_app.task(
+    name="app.background.tasks.deliver_webhook_task",
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=3,
+)
+def deliver_webhook_task(self, delivery_id: str):
+    async def _run():
+        from app.services.webhook_service import deliver_webhook
+        async with SessionLocal() as db:
+            return await deliver_webhook(db, delivery_id)
+    return asyncio.run(_run())
+
+
+@celery_app.task(
     name="app.background.tasks.process_ai_run_task",
     bind=True,
     autoretry_for=(Exception,),

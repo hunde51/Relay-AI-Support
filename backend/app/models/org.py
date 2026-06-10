@@ -29,6 +29,7 @@ class UserORM(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String, nullable=False)
     role: Mapped[str] = mapped_column(String, default="agent", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
 
     organization: Mapped["OrganizationORM"] = relationship(back_populates="users")
 
