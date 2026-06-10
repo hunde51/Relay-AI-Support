@@ -22,6 +22,7 @@ async def create(db: AsyncSession, data: TicketCreate, current_user: dict | None
         message=data.message,
         priority=data.priority,
         category=data.category,
+        source=current_user.get("source", "manual") if current_user else "manual",
         created_at=_utc_now(),
         updated_at=_utc_now(),
     )
