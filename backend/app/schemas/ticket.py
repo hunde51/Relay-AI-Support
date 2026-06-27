@@ -15,7 +15,7 @@ class TicketUpdate(BaseModel):
     status: Optional[TicketStatus] = None
     priority: Optional[TicketPriority] = None
     category: Optional[TicketCategory] = None
-
+    
 
 class TicketFilters(BaseModel):
     status: Optional[TicketStatus] = None

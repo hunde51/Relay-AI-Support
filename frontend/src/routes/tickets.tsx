@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { TicketsFeed } from "@/components/dashboard/TicketsFeed";
 import { useTickets } from "@/hooks/useTickets";
-import { Filter, Plus, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { useWSSubscription } from "@/hooks/useWSSubscription";
+import { Filter, Plus, RefreshCw, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TicketStatus } from "@/lib/api/client";
 import { CreateTicketModal } from "@/components/tickets/CreateTicketModal";
@@ -21,12 +22,15 @@ const statuses = ["all", "open", "in_progress", "waiting_on_customer", "resolved
 type Filter = (typeof statuses)[number];
 
 function TicketsPage() {
+  useWSSubscription("/ws/tickets");
   const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
 
   const { tickets, total, pages, loading, error, refetch } = useTickets({
     status: filter === "all" ? undefined : (filter as TicketStatus),
+    search: search || undefined,
     page,
     page_size: 25,
   });
@@ -68,14 +72,14 @@ function TicketsPage() {
         </div>
       )}
 
-      <div className="flex items-center gap-2 overflow-x-auto">
-        <Filter className="h-4 w-4 text-muted-foreground" />
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
         {statuses.map((s) => (
           <button
             key={s}
             onClick={() => handleFilterChange(s)}
             className={cn(
-              "rounded-full border px-3 py-1 text-xs capitalize transition-colors",
+              "rounded-full border px-3 py-1 text-xs capitalize transition-colors shrink-0",
               filter === s
                 ? "border-primary/40 bg-primary/10 text-primary"
                 : "border-border bg-card text-muted-foreground hover:text-foreground",
@@ -84,7 +88,22 @@ function TicketsPage() {
             {s.replace(/_/g, " ")}
           </button>
         ))}
-        <span className="ml-auto text-xs text-muted-foreground">{total} total</span>
+      </div>
+
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+        <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+        <input
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          placeholder="Search tickets by title, ID, or message…"
+        />
+        {search && (
+          <button onClick={() => setSearch("")}>
+            <X className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        )}
+        <span className="text-xs text-muted-foreground shrink-0">{total} total</span>
       </div>
 
       {!loading && tickets.length === 0 && !error && (

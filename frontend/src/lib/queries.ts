@@ -5,6 +5,7 @@ import { api } from "./api/client";
 export const keys = {
   dashboardSummary: ["dashboard", "summary"] as const,
   recentActivity:   ["dashboard", "recent-activity"] as const,
+  ticketVolume:     ["dashboard", "ticket-volume"] as const,
   tickets:          (p?: object) => ["tickets", p ?? {}] as const,
   ticket:           (id: string) => ["ticket", id] as const,
   ticketMessages:   (id: string) => ["ticket", id, "messages"] as const,
@@ -23,13 +24,25 @@ export const keys = {
   settingsAI:              ["settings", "ai"] as const,
   settingsNotifications:   ["settings", "notifications"] as const,
   settingsIntegrations:    ["settings", "integrations"] as const,
+  apiKeys:          ["api-keys"] as const,
+  webhookEndpoints: ["webhooks", "endpoints"] as const,
+  webhookDeliveries:["webhooks", "deliveries"] as const,
 };
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const useDashboardSummary = () =>
   useQuery({ queryKey: keys.dashboardSummary, queryFn: api.dashboard.summary });
 
+export const useRecentActivity = () =>
+  useQuery({ queryKey: keys.recentActivity, queryFn: api.dashboard.recentActivity, staleTime: 30_000 });
+
+export const useTicketVolume = () =>
+  useQuery({ queryKey: keys.ticketVolume, queryFn: api.dashboard.ticketVolume, staleTime: 60_000 });
+
 // ── Tickets ───────────────────────────────────────────────────────────────────
+export const useTicketQuery = (id: string) =>
+  useQuery({ queryKey: keys.ticket(id), queryFn: () => api.tickets.get(id), staleTime: 15_000 });
+
 export const useTicketMessages = (id: string) =>
   useQuery({ queryKey: keys.ticketMessages(id), queryFn: () => api.tickets.messages(id) });
 
@@ -172,6 +185,65 @@ export const usePatchAISettings = () => {
   return useMutation({
     mutationFn: api.settings.patchAI,
     onSuccess: (data) => qc.setQueryData(keys.settingsAI, data),
+  });
+};
+
+// ── API Keys ──────────────────────────────────────────────────────────────────
+export const useApiKeys = () =>
+  useQuery({ queryKey: keys.apiKeys, queryFn: api.apiKeys.list, staleTime: 30_000 });
+
+export const useCreateApiKey = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; scopes?: string[] }) => api.apiKeys.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.apiKeys }),
+  });
+};
+
+export const useRevokeApiKey = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.apiKeys.revoke(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.apiKeys }),
+  });
+};
+
+export const useRotateApiKey = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.apiKeys.rotate(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.apiKeys }),
+  });
+};
+
+// ── Webhooks ──────────────────────────────────────────────────────────────────
+export const useWebhookEndpoints = () =>
+  useQuery({ queryKey: keys.webhookEndpoints, queryFn: api.webhooks.listEndpoints, staleTime: 30_000 });
+
+export const useCreateWebhookEndpoint = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { url: string; events: string[] }) => api.webhooks.createEndpoint(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.webhookEndpoints }),
+  });
+};
+
+export const useDeleteWebhookEndpoint = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.webhooks.deleteEndpoint(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.webhookEndpoints }),
+  });
+};
+
+export const useWebhookDeliveries = () =>
+  useQuery({ queryKey: keys.webhookDeliveries, queryFn: api.webhooks.listDeliveries, staleTime: 30_000 });
+
+export const useTestWebhookEndpoint = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.webhooks.testEndpoint(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.webhookDeliveries }),
   });
 };
 

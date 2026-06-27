@@ -138,6 +138,50 @@ export type NotificationSettings = {
   sms_incidents_enabled: boolean;
 };
 
+export type RecentActivity = {
+  event_id: string;
+  ticket_id: string;
+  ticket_title: string;
+  event_type: string;
+  actor_type: string;
+  old_value: string | null;
+  new_value: string | null;
+  created_at: string;
+};
+
+export type ApiKey = {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[];
+  is_active: boolean;
+  last_used_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+};
+
+export type ApiKeyWithSecret = ApiKey & { key: string };
+
+export type WebhookEndpoint = {
+  id: string;
+  url: string;
+  events: string[];
+  is_active: boolean;
+  created_at: string;
+};
+
+export type WebhookEndpointWithSecret = WebhookEndpoint & { secret: string };
+
+export type WebhookDelivery = {
+  id: string;
+  endpoint_id: string;
+  event_type: string;
+  status: string;
+  attempts: number;
+  response_status: number | null;
+  created_at: string;
+};
+
 export const api = {
   tickets: {
     list: (params?: {
@@ -201,7 +245,9 @@ export const api = {
   dashboard: {
     summary: (): Promise<DashboardSummary> =>
       request<DashboardSummary>(`${BASE}/dashboard/summary`),
-    recentActivity: () => request<unknown[]>(`${BASE}/dashboard/recent-activity`),
+    recentActivity: (): Promise<RecentActivity[]> =>
+      request<RecentActivity[]>(`${BASE}/dashboard/recent-activity`),
+    ticketVolume: () => request<{ day: string; count: number }[]>(`${BASE}/dashboard/ticket-volume`),
   },
 
   analytics: {
@@ -279,6 +325,37 @@ export const api = {
         body: JSON.stringify({ executor_user_id: executorUserId ?? import.meta.env.VITE_CURRENT_USER_ID ?? null }),
       }),
     audits: (ticketId: string) => request(`${BASE}/ai/tickets/${ticketId}/audits`),
+  },
+
+  apiKeys: {
+    list: (): Promise<ApiKey[]> => request<ApiKey[]>(`${BASE}/api-keys`),
+    create: (data: { name: string; scopes?: string[] }): Promise<ApiKeyWithSecret> =>
+      request<ApiKeyWithSecret>(`${BASE}/api-keys`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+    revoke: (id: string): Promise<void> =>
+      request<void>(`${BASE}/api-keys/${id}`, { method: "DELETE" }),
+    rotate: (id: string): Promise<ApiKeyWithSecret> =>
+      request<ApiKeyWithSecret>(`${BASE}/api-keys/${id}/rotate`, { method: "POST" }),
+  },
+
+  webhooks: {
+    listEndpoints: (): Promise<WebhookEndpoint[]> =>
+      request<WebhookEndpoint[]>(`${BASE}/webhooks/endpoints`),
+    createEndpoint: (data: { url: string; events: string[] }): Promise<WebhookEndpointWithSecret> =>
+      request<WebhookEndpointWithSecret>(`${BASE}/webhooks/endpoints`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+    deleteEndpoint: (id: string): Promise<void> =>
+      request<void>(`${BASE}/webhooks/endpoints/${id}`, { method: "DELETE" }),
+    listDeliveries: (): Promise<WebhookDelivery[]> =>
+      request<WebhookDelivery[]>(`${BASE}/webhooks/deliveries`),
+    testEndpoint: (id: string): Promise<{ delivery_id: string; status: string }> =>
+      request<{ delivery_id: string; status: string }>(`${BASE}/webhooks/endpoints/${id}/test`, { method: "POST" }),
   },
 
   // Legacy — kept for backward compat with agent.py route

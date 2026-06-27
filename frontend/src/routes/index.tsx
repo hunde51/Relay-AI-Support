@@ -1,11 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Ticket, Inbox, CheckCircle2, Timer } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Ticket, Inbox, CheckCircle2, Timer, Activity } from "lucide-react";
+import { motion } from "framer-motion";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { TicketsFeed } from "@/components/dashboard/TicketsFeed";
 import { AIActivityPanel } from "@/components/ai-panel/AIActivityPanel";
 import { useTickets } from "@/hooks/useTickets";
-import { api, type DashboardSummary, WS_BASE } from "@/lib/api/client";
+import { useWSSubscription } from "@/hooks/useWSSubscription";
+import { useDashboardSummary, useRecentActivity } from "@/lib/queries";
+import type { RecentActivity } from "@/lib/api/client";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -18,24 +20,10 @@ export const Route = createFileRoute("/")({
 });
 
 function Dashboard() {
+  useWSSubscription("/ws/tickets");
   const { tickets, total, loading, error, refetch } = useTickets({ page_size: 25 });
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-
-  const loadSummary = () => api.dashboard.summary().then(setSummary).catch(() => null);
-
-  useEffect(() => {
-    loadSummary();
-
-    // WebSocket live updates
-    const ws = new WebSocket(`${WS_BASE}/ws/tickets`);
-    wsRef.current = ws;
-    ws.onmessage = () => {
-      refetch();
-      loadSummary();
-    };
-    return () => ws.close();
-  }, []);
+  const { data: summary, isLoading: summaryLoading } = useDashboardSummary();
+  const { data: activity = [] } = useRecentActivity();
 
   if (error)
     return (
@@ -59,10 +47,10 @@ function Dashboard() {
       </header>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard index={0} label="Total tickets" value={summary?.total_tickets ?? total} delta="" trend="up" loading={loading} icon={<Ticket className="h-4 w-4" />} />
-        <KpiCard index={1} label="Open tickets" value={summary?.open_tickets ?? 0} delta="" trend="down" loading={loading} icon={<Inbox className="h-4 w-4" />} />
-        <KpiCard index={2} label="Resolved today" value={summary?.resolved_today ?? 0} delta="" trend="up" loading={loading} icon={<CheckCircle2 className="h-4 w-4" />} />
-        <KpiCard index={3} label="Avg response" value={avgResponse} delta="" trend="up" loading={loading} icon={<Timer className="h-4 w-4" />} />
+        <KpiCard index={0} label="Total tickets" value={summary?.total_tickets ?? total} delta="" trend="up" loading={summaryLoading} icon={<Ticket className="h-4 w-4" />} />
+        <KpiCard index={1} label="Open tickets" value={summary?.open_tickets ?? 0} delta="" trend="down" loading={summaryLoading} icon={<Inbox className="h-4 w-4" />} />
+        <KpiCard index={2} label="Resolved today" value={summary?.resolved_today ?? 0} delta="" trend="up" loading={summaryLoading} icon={<CheckCircle2 className="h-4 w-4" />} />
+        <KpiCard index={3} label="Avg response" value={avgResponse} delta="" trend="up" loading={summaryLoading} icon={<Timer className="h-4 w-4" />} />
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
@@ -73,10 +61,40 @@ function Dashboard() {
           </div>
           <TicketsFeed tickets={tickets} loading={loading} onUpdate={refetch} />
         </div>
-        <aside className="min-w-0">
+        <aside className="min-w-0 space-y-4">
           <AIActivityPanel />
+          <RecentActivityFeed items={activity} loading={false} />
         </aside>
       </section>
+    </div>
+  );
+}
+
+function RecentActivityFeed({ items, loading }: { items: RecentActivity[]; loading: boolean }) {
+  if (loading) return <div className="h-40 rounded-xl shimmer" />;
+  if (items.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-border bg-card">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+        <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+        <div className="text-sm font-semibold">Recent activity</div>
+      </div>
+      <div className="divide-y divide-border max-h-64 overflow-y-auto">
+        {items.map((e) => (
+          <Link key={e.event_id} to="/tickets/$id" params={{ id: e.ticket_id }}
+            className="flex items-start gap-3 px-4 py-2.5 text-xs hover:bg-accent/40 transition-colors">
+            <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+            <div className="min-w-0">
+              <div className="truncate font-medium text-foreground">{e.ticket_title}</div>
+              <div className="text-muted-foreground">
+                {e.event_type.replace(/_/g, " ")} — {e.new_value ?? ""}
+              </div>
+              <div className="text-[10px] text-muted-foreground">{new Date(e.created_at).toLocaleString()}</div>
+            </div>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
