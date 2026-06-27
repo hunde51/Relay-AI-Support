@@ -172,6 +172,26 @@ export type WebhookEndpoint = {
 
 export type WebhookEndpointWithSecret = WebhookEndpoint & { secret: string };
 
+export type ApiCustomer = {
+  id: string;
+  name: string;
+  email: string;
+  company: string | null;
+  external_id: string | null;
+  organization_id: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApiCustomerTicket = {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  category: string;
+  created_at: string;
+};
+
 export type WebhookDelivery = {
   id: string;
   endpoint_id: string;
@@ -240,6 +260,16 @@ export const api = {
 
     timeline: (id: string): Promise<ApiEvent[]> =>
       request<ApiEvent[]>(`${BASE}/tickets/${id}/timeline`),
+
+    close: (id: string): Promise<ApiTicket> =>
+      request<ApiTicket>(`${BASE}/tickets/${id}/close`, { method: "POST" }),
+
+    assign: (id: string, assigneeId: string): Promise<ApiTicket> =>
+      request<ApiTicket>(`${BASE}/tickets/${id}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignee_id: assigneeId }),
+      }),
   },
 
   dashboard: {
@@ -325,6 +355,19 @@ export const api = {
         body: JSON.stringify({ executor_user_id: executorUserId ?? import.meta.env.VITE_CURRENT_USER_ID ?? null }),
       }),
     audits: (ticketId: string) => request(`${BASE}/ai/tickets/${ticketId}/audits`),
+  },
+
+  customers: {
+    list: (search?: string): Promise<ApiCustomer[]> => {
+      const q = search ? `?search=${encodeURIComponent(search)}` : "";
+      return request<ApiCustomer[]>(`${BASE}/customers${q}`);
+    },
+    get: (id: string): Promise<ApiCustomer> =>
+      request<ApiCustomer>(`${BASE}/customers/${id}`),
+    getTickets: (id: string): Promise<ApiCustomerTicket[]> =>
+      request<ApiCustomerTicket[]>(`${BASE}/customers/${id}/tickets`),
+    getTimeline: (id: string): Promise<RecentActivity[]> =>
+      request<RecentActivity[]>(`${BASE}/customers/${id}/timeline`),
   },
 
   apiKeys: {

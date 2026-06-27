@@ -1,18 +1,21 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { ArrowLeft, CheckCircle2, ArrowUpRight, Sparkles, Send, Clock, MessageSquare } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ArrowUpRight, Sparkles, Send, Clock, MessageSquare, XCircle, UserRound, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, api, type ApiTicket } from "@/lib/api/client";
 import { CategoryBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
 import { AIActivityPanel } from "@/components/ai-panel/AIActivityPanel";
 import { useAIStream } from "@/hooks/useAIStream";
+import { useWSSubscription } from "@/hooks/useWSSubscription";
 import { cn } from "@/lib/utils";
 import {
-  keys,
+  keys, useTicketQuery,
   useTicketMessages, useTicketTimeline, useTicketActions, useTicketAudits,
-  useResolveTicket, useEscalateTicket, useSendMessage, useRunAI,
+  useResolveTicket, useEscalateTicket, useCloseTicket, useAssignTicket,
+  useSendMessage, useRunAI,
   useApproveAction, useRejectAction, useExecuteAction,
+  useCustomer,
 } from "@/lib/queries";
 
 export const Route = createFileRoute("/tickets/$id")({
@@ -52,38 +55,52 @@ type AuditEntry = { id: string; action: string; actor_type: string; actor_user_i
 function TicketDetail() {
   const qc = useQueryClient();
   const initial = Route.useLoaderData() as ApiTicket;
-  const ticket: ApiTicket = qc.getQueryData(keys.ticket(initial.id)) ?? initial;
+  const { data: ticketData } = useTicketQuery(initial.id);
+  const ticket: ApiTicket = ticketData ?? initial;
+
+  useWSSubscription("/ws/tickets");
 
   const [tab, setTab] = useState<"messages" | "timeline">("messages");
   const [reply, setReply] = useState("");
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
   const { steps, connected } = useAIStream(activeTicketId);
 
-  const { data: messages = [] } = useTicketMessages(ticket.id);
-  const { data: timeline = [] } = useTicketTimeline(ticket.id);
-  const { data: rawActions = [] } = useTicketActions(ticket.id);
+  const { data: messages = [], isLoading: msgsLoading } = useTicketMessages(ticket.id);
+  const { data: timeline = [], isLoading: tlLoading } = useTicketTimeline(ticket.id);
+  const { data: rawActions = [], isLoading: actionsLoading } = useTicketActions(ticket.id);
   const actions = rawActions as SuggestedAction[];
   const { data: rawAudits = [] } = useTicketAudits(ticket.id);
   const audits = rawAudits as AuditEntry[];
 
   const resolve = useResolveTicket(ticket.id);
   const escalate = useEscalateTicket(ticket.id);
+  const close = useCloseTicket(ticket.id);
+  const assign = useAssignTicket(ticket.id);
   const sendMsg = useSendMessage(ticket.id);
   const runAI = useRunAI(ticket.id);
   const approve = useApproveAction(ticket.id);
   const reject = useRejectAction(ticket.id);
   const execute = useExecuteAction(ticket.id);
+  const [assignId, setAssignId] = useState("");
 
-  const currentTicket: ApiTicket = qc.getQueryData(keys.ticket(ticket.id)) ?? ticket;
+  const currentTicket: ApiTicket = ticketData ?? initial;
+  const { data: customerData } = useCustomer(currentTicket.customer_id ?? "");
 
   const sendReply = () => {
     if (!reply.trim()) return;
-    sendMsg.mutate(reply, { onSuccess: () => setReply("") });
+    sendMsg.mutate(reply, {
+      onSuccess: () => setReply(""),
+      onError: () => {},
+    });
   };
 
   const handleRunAI = () => {
     setActiveTicketId(ticket.id);
-    runAI.mutate();
+    runAI.mutate(undefined, {
+      onSettled: () => {
+        // keep stream open until AI finishes
+      },
+    });
   };
 
   return (
@@ -122,7 +139,13 @@ function TicketDetail() {
           {tab === "messages" && (
             <div className="flex flex-col">
               <div className="flex-1 divide-y divide-border max-h-96 overflow-y-auto">
-                {messages.length === 0 ? (
+                {msgsLoading ? (
+                  <div className="space-y-3 p-5">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="h-12 rounded-lg shimmer" />
+                    ))}
+                  </div>
+                ) : messages.length === 0 ? (
                   <p className="px-5 py-8 text-center text-sm text-muted-foreground">No messages yet.</p>
                 ) : messages.map((m) => (
                   <div key={m.id} className={cn("px-5 py-3", m.is_internal && "bg-warning/5")}>
@@ -150,7 +173,13 @@ function TicketDetail() {
 
           {tab === "timeline" && (
             <div className="divide-y divide-border max-h-[500px] overflow-y-auto">
-              {timeline.length === 0 ? (
+              {tlLoading ? (
+                <div className="space-y-3 p-5">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-10 rounded-lg shimmer" />
+                  ))}
+                </div>
+              ) : timeline.length === 0 ? (
                 <p className="px-5 py-8 text-center text-sm text-muted-foreground">No events yet.</p>
               ) : timeline.map((e) => (
                 <div key={e.id} className="px-5 py-3 flex items-start gap-3 text-sm">
@@ -192,59 +221,89 @@ function TicketDetail() {
                 className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-warning/15 text-warning border border-warning/30 px-3 py-2 text-xs font-medium hover:bg-warning/20 disabled:opacity-40">
                 <ArrowUpRight className="h-3.5 w-3.5" /> Escalate
               </button>
+              <button onClick={() => close.mutate()}
+                disabled={close.isPending || currentTicket.status === "closed"}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-muted/60 text-muted-foreground border border-border px-3 py-2 text-xs font-medium hover:bg-muted disabled:opacity-40">
+                <XCircle className="h-3.5 w-3.5" /> Close
+              </button>
+            </div>
+          </div>
+
+          {/* Assign */}
+          <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <UserPlus className="h-3.5 w-3.5" /> Assignment
+            </div>
+            <div className="flex items-center gap-2">
+              <input value={assignId} onChange={(e) => setAssignId(e.target.value)}
+                placeholder="User ID to assign…"
+                className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary/40"
+                onKeyDown={(e) => { if (e.key === "Enter" && assignId.trim()) { assign.mutate(assignId.trim()); setAssignId(""); } }}
+              />
+              <button onClick={() => { if (assignId.trim()) { assign.mutate(assignId.trim()); setAssignId(""); } }}
+                disabled={assign.isPending || !assignId.trim()}
+                className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50">
+                Assign
+              </button>
             </div>
           </div>
 
           {/* Pending AI suggestions */}
-          {actions.filter((a) => a.approval_status === "pending").length > 0 && (
-            <div className="rounded-xl border border-warning/30 bg-warning/5 p-4 space-y-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-warning">AI Suggestions</div>
-              {actions.filter((a) => a.approval_status === "pending").map((a) => (
-                <div key={a.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium capitalize">{a.action_type.replace(/_/g, " ")}</span>
-                    <span className={cn("rounded px-1.5 py-0.5 text-[10px]",
-                      a.risk_level === "high" ? "bg-destructive/15 text-destructive" :
-                      a.risk_level === "medium" ? "bg-warning/15 text-warning" : "bg-success/15 text-success")}>
-                      {a.risk_level}
-                    </span>
-                  </div>
-                  {a.payload?.response != null && (
-                    <p className="text-xs text-muted-foreground line-clamp-2">{String(a.payload.response)}</p>
-                  )}
-                  <div className="flex gap-2">
-                    <button onClick={() => approve.mutate(a.id)} disabled={approve.isPending}
-                      className="flex-1 rounded-md bg-success/15 text-success border border-success/30 py-1 text-xs font-medium hover:bg-success/25 disabled:opacity-50">
-                      Approve
-                    </button>
-                    <button onClick={() => reject.mutate(a.id)} disabled={reject.isPending}
-                      className="flex-1 rounded-md bg-destructive/10 text-destructive border border-destructive/20 py-1 text-xs font-medium hover:bg-destructive/20 disabled:opacity-50">
-                      Reject
-                    </button>
-                  </div>
+          {actions.length > 0 && !actionsLoading && (
+            <>
+              {actions.filter((a) => a.approval_status === "pending").length > 0 && (
+                <div className="rounded-xl border border-warning/30 bg-warning/5 p-4 space-y-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-warning">AI Suggestions</div>
+                  {actions.filter((a) => a.approval_status === "pending").map((a) => (
+                    <div key={a.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium capitalize">{a.action_type.replace(/_/g, " ")}</span>
+                        <span className={cn("rounded px-1.5 py-0.5 text-[10px]",
+                          a.risk_level === "high" ? "bg-destructive/15 text-destructive" :
+                          a.risk_level === "medium" ? "bg-warning/15 text-warning" : "bg-success/15 text-success")}>
+                          {a.risk_level}
+                        </span>
+                      </div>
+                      {a.payload?.response != null && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">{String(a.payload.response)}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <button onClick={() => approve.mutate(a.id)} disabled={approve.isPending}
+                          className="flex-1 rounded-md bg-success/15 text-success border border-success/30 py-1 text-xs font-medium hover:bg-success/25 disabled:opacity-50">
+                          Approve
+                        </button>
+                        <button onClick={() => reject.mutate(a.id)} disabled={reject.isPending}
+                          className="flex-1 rounded-md bg-destructive/10 text-destructive border border-destructive/20 py-1 text-xs font-medium hover:bg-destructive/20 disabled:opacity-50">
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+
+              {/* Approved AI actions ready to execute */}
+              {actions.filter((a) => a.approval_status === "approved").length > 0 && (
+                <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider">Approved AI Actions</div>
+                  {actions.filter((a) => a.approval_status === "approved").map((a) => (
+                    <div key={a.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium capitalize">{a.action_type.replace(/_/g, " ")}</span>
+                        <span className="text-xs text-muted-foreground">ready</span>
+                      </div>
+                      <button onClick={() => execute.mutate(a.id)} disabled={execute.isPending}
+                        className="w-full rounded-md bg-primary/15 text-primary border border-primary/30 py-1 text-xs font-medium hover:bg-primary/20 disabled:opacity-50">
+                        Execute
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
 
-          {/* Approved AI actions ready to execute */}
-          {actions.filter((a) => a.approval_status === "approved").length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-              <div className="text-xs font-semibold uppercase tracking-wider">Approved AI Actions</div>
-              {actions.filter((a) => a.approval_status === "approved").map((a) => (
-                <div key={a.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium capitalize">{a.action_type.replace(/_/g, " ")}</span>
-                    <span className="text-xs text-muted-foreground">ready</span>
-                  </div>
-                  <button onClick={() => execute.mutate(a.id)} disabled={execute.isPending}
-                    className="w-full rounded-md bg-primary/15 text-primary border border-primary/30 py-1 text-xs font-medium hover:bg-primary/20 disabled:opacity-50">
-                    Execute
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          {actionsLoading && <div className="h-32 rounded-xl shimmer" />}
 
           {/* AI activity stream */}
           <AIActivityPanel liveSteps={activeTicketId ? steps : undefined} connected={connected} />
@@ -265,6 +324,22 @@ function TicketDetail() {
             </div>
           )}
 
+          {/* Customer info */}
+          {customerData && (
+            <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <UserRound className="h-3.5 w-3.5" /> Customer
+              </div>
+              <div className="text-sm font-medium">{customerData.name}</div>
+              <div className="text-xs text-muted-foreground">{customerData.email}</div>
+              {customerData.company && <div className="text-xs text-muted-foreground">{customerData.company}</div>}
+              <Link to="/customers/$id" params={{ id: customerData.id }}
+                className="inline-block text-xs text-primary hover:underline">
+                View profile →
+              </Link>
+            </div>
+          )}
+
           {/* Metadata */}
           <div className="rounded-xl border border-border bg-card p-5 text-xs space-y-2">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Metadata</div>
@@ -273,6 +348,8 @@ function TicketDetail() {
             <Row k="Status" v={currentTicket.status} />
             <Row k="Priority" v={currentTicket.priority} />
             <Row k="Category" v={currentTicket.category} />
+            <Row k="Source" v={currentTicket.source} />
+            {currentTicket.assignee_id && <Row k="Assignee" v={currentTicket.assignee_id} />}
             {currentTicket.resolved_at && <Row k="Resolved" v={new Date(currentTicket.resolved_at).toLocaleString()} />}
           </div>
         </motion.aside>

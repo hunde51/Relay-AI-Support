@@ -12,9 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TicketsRouteImport } from './routes/tickets'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as KnowledgeBaseRouteImport } from './routes/knowledge-base'
+import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as AiInsightsRouteImport } from './routes/ai-insights'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TicketsIdRouteImport } from './routes/tickets.$id'
+import { Route as CustomersIdRouteImport } from './routes/customers.$id'
 
 const TicketsRoute = TicketsRouteImport.update({
   id: '/tickets',
@@ -29,6 +31,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const KnowledgeBaseRoute = KnowledgeBaseRouteImport.update({
   id: '/knowledge-base',
   path: '/knowledge-base',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomersRoute = CustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AiInsightsRoute = AiInsightsRouteImport.update({
@@ -46,30 +53,41 @@ const TicketsIdRoute = TicketsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => TicketsRoute,
 } as any)
+const CustomersIdRoute = CustomersIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => CustomersRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai-insights': typeof AiInsightsRoute
+  '/customers': typeof CustomersRouteWithChildren
   '/knowledge-base': typeof KnowledgeBaseRoute
   '/settings': typeof SettingsRoute
   '/tickets': typeof TicketsRouteWithChildren
+  '/customers/$id': typeof CustomersIdRoute
   '/tickets/$id': typeof TicketsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai-insights': typeof AiInsightsRoute
+  '/customers': typeof CustomersRouteWithChildren
   '/knowledge-base': typeof KnowledgeBaseRoute
   '/settings': typeof SettingsRoute
   '/tickets': typeof TicketsRouteWithChildren
+  '/customers/$id': typeof CustomersIdRoute
   '/tickets/$id': typeof TicketsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/ai-insights': typeof AiInsightsRoute
+  '/customers': typeof CustomersRouteWithChildren
   '/knowledge-base': typeof KnowledgeBaseRoute
   '/settings': typeof SettingsRoute
   '/tickets': typeof TicketsRouteWithChildren
+  '/customers/$id': typeof CustomersIdRoute
   '/tickets/$id': typeof TicketsIdRoute
 }
 export interface FileRouteTypes {
@@ -77,31 +95,38 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/ai-insights'
+    | '/customers'
     | '/knowledge-base'
     | '/settings'
     | '/tickets'
+    | '/customers/$id'
     | '/tickets/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/ai-insights'
+    | '/customers'
     | '/knowledge-base'
     | '/settings'
     | '/tickets'
+    | '/customers/$id'
     | '/tickets/$id'
   id:
     | '__root__'
     | '/'
     | '/ai-insights'
+    | '/customers'
     | '/knowledge-base'
     | '/settings'
     | '/tickets'
+    | '/customers/$id'
     | '/tickets/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiInsightsRoute: typeof AiInsightsRoute
+  CustomersRoute: typeof CustomersRouteWithChildren
   KnowledgeBaseRoute: typeof KnowledgeBaseRoute
   SettingsRoute: typeof SettingsRoute
   TicketsRoute: typeof TicketsRouteWithChildren
@@ -130,6 +155,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KnowledgeBaseRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/customers': {
+      id: '/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ai-insights': {
       id: '/ai-insights'
       path: '/ai-insights'
@@ -151,8 +183,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TicketsIdRouteImport
       parentRoute: typeof TicketsRoute
     }
+    '/customers/$id': {
+      id: '/customers/$id'
+      path: '/$id'
+      fullPath: '/customers/$id'
+      preLoaderRoute: typeof CustomersIdRouteImport
+      parentRoute: typeof CustomersRoute
+    }
   }
 }
+
+interface CustomersRouteChildren {
+  CustomersIdRoute: typeof CustomersIdRoute
+}
+
+const CustomersRouteChildren: CustomersRouteChildren = {
+  CustomersIdRoute: CustomersIdRoute,
+}
+
+const CustomersRouteWithChildren = CustomersRoute._addFileChildren(
+  CustomersRouteChildren,
+)
 
 interface TicketsRouteChildren {
   TicketsIdRoute: typeof TicketsIdRoute
@@ -168,6 +219,7 @@ const TicketsRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiInsightsRoute: AiInsightsRoute,
+  CustomersRoute: CustomersRouteWithChildren,
   KnowledgeBaseRoute: KnowledgeBaseRoute,
   SettingsRoute: SettingsRoute,
   TicketsRoute: TicketsRouteWithChildren,

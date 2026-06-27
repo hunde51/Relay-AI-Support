@@ -1,12 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Ticket, Inbox, CheckCircle2, Timer, Activity } from "lucide-react";
+import { Ticket, Inbox, CheckCircle2, Timer, Activity, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
+import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { TicketsFeed } from "@/components/dashboard/TicketsFeed";
 import { AIActivityPanel } from "@/components/ai-panel/AIActivityPanel";
 import { useTickets } from "@/hooks/useTickets";
 import { useWSSubscription } from "@/hooks/useWSSubscription";
-import { useDashboardSummary, useRecentActivity } from "@/lib/queries";
+import { useDashboardSummary, useRecentActivity, useTicketVolume } from "@/lib/queries";
 import type { RecentActivity } from "@/lib/api/client";
 
 export const Route = createFileRoute("/")({
@@ -24,6 +25,8 @@ function Dashboard() {
   const { tickets, total, loading, error, refetch } = useTickets({ page_size: 25 });
   const { data: summary, isLoading: summaryLoading } = useDashboardSummary();
   const { data: activity = [] } = useRecentActivity();
+  const { data: volumeData = [] } = useTicketVolume();
+  const volumeItems = volumeData.map((r: { day: string; count: number }) => ({ day: r.day.slice(5), count: r.count }));
 
   if (error)
     return (
@@ -52,6 +55,29 @@ function Dashboard() {
         <KpiCard index={2} label="Resolved today" value={summary?.resolved_today ?? 0} delta="" trend="up" loading={summaryLoading} icon={<CheckCircle2 className="h-4 w-4" />} />
         <KpiCard index={3} label="Avg response" value={avgResponse} delta="" trend="up" loading={summaryLoading} icon={<Timer className="h-4 w-4" />} />
       </section>
+
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.15 }} className="rounded-xl border border-border bg-card p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          <div className="text-sm font-semibold">Ticket volume (last 14 days)</div>
+        </div>
+        <ResponsiveContainer width="100%" height={140}>
+          <AreaChart data={volumeItems} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="g-volume" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="day" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
+            <Area type="monotone" dataKey="count" stroke="var(--chart-1)" strokeWidth={2} fill="url(#g-volume)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </motion.div>
 
       <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
         <div className="space-y-3 min-w-0">

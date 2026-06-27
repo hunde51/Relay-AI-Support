@@ -1,10 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Ticket, Sparkles, BookOpen, Settings, Headphones } from "lucide-react";
+import { LayoutDashboard, Ticket, Sparkles, BookOpen, Settings, Headphones, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/tickets", label: "Tickets", icon: Ticket },
+  { to: "/customers", label: "Customers", icon: Users },
   { to: "/ai-insights", label: "AI Insights", icon: Sparkles },
   { to: "/knowledge-base", label: "Knowledge Base", icon: BookOpen },
   { to: "/settings", label: "Settings", icon: Settings },

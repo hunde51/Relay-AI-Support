@@ -11,7 +11,6 @@ export const keys = {
   ticketMessages:   (id: string) => ["ticket", id, "messages"] as const,
   ticketTimeline:   (id: string) => ["ticket", id, "timeline"] as const,
   ticketActions:    (id: string) => ["ticket", id, "actions"] as const,
-  customers:        (q?: string) => ["customers", q ?? ""] as const,
   kbDocuments:      ["kb", "documents"] as const,
   kbSources:        ["kb", "sources"] as const,
   kbChunks:         (id: string) => ["kb", "chunks", id] as const,
@@ -24,6 +23,9 @@ export const keys = {
   settingsAI:              ["settings", "ai"] as const,
   settingsNotifications:   ["settings", "notifications"] as const,
   settingsIntegrations:    ["settings", "integrations"] as const,
+  customers:        (q?: string) => ["customers", q ?? ""] as const,
+  customer:         (id: string) => ["customer", id] as const,
+  customerTickets:  (id: string) => ["customer", id, "tickets"] as const,
   apiKeys:          ["api-keys"] as const,
   webhookEndpoints: ["webhooks", "endpoints"] as const,
   webhookDeliveries:["webhooks", "deliveries"] as const,
@@ -117,6 +119,50 @@ export const useExecuteAction = (ticketId: string) => {
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.ticketActions(ticketId) }),
   });
 };
+
+export const useCloseTicket = (id: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.tickets.close(id),
+    onSuccess: (updated) => {
+      qc.setQueryData(keys.ticket(id), updated);
+      qc.invalidateQueries({ queryKey: keys.ticketTimeline(id) });
+      qc.invalidateQueries({ queryKey: keys.dashboardSummary });
+    },
+  });
+};
+
+export const useAssignTicket = (id: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (assigneeId: string) => api.tickets.assign(id, assigneeId),
+    onSuccess: (updated) => {
+      qc.setQueryData(keys.ticket(id), updated);
+      qc.invalidateQueries({ queryKey: keys.ticketTimeline(id) });
+    },
+  });
+};
+
+// ── Customers ──────────────────────────────────────────────────────────────────
+export const useCustomers = (search?: string) =>
+  useQuery({
+    queryKey: keys.customers(search),
+    queryFn: () => api.customers.list(search),
+  });
+
+export const useCustomer = (id: string) =>
+  useQuery({
+    queryKey: keys.customer(id),
+    queryFn: () => api.customers.get(id),
+    enabled: Boolean(id),
+  });
+
+export const useCustomerTickets = (id: string) =>
+  useQuery({
+    queryKey: keys.customerTickets(id),
+    queryFn: () => api.customers.getTickets(id),
+    enabled: Boolean(id),
+  });
 
 // ── Knowledge ─────────────────────────────────────────────────────────────────
 export const useKBDocuments = () =>

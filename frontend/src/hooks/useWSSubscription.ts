@@ -11,7 +11,7 @@ export function useWSSubscription(path: string) {
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const retriesRef = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const connect = () => {
     const ws = new WebSocket(`${WS_BASE}${path}`);

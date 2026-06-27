@@ -1,10 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { Key, Webhook, Plus, Trash2, RefreshCw, Copy } from "lucide-react";
 import {
   useWorkspaceSettings, useAISettings, useNotificationSettings,
   usePatchWorkspace, usePatchAISettings, usePatchNotifications,
+  useApiKeys, useCreateApiKey, useRevokeApiKey, useRotateApiKey,
+  useWebhookEndpoints, useCreateWebhookEndpoint, useDeleteWebhookEndpoint,
+  useWebhookDeliveries, useTestWebhookEndpoint,
 } from "@/lib/queries";
-import type { WorkspaceSettings, AISettings, NotificationSettings } from "@/lib/api/client";
+import type { WorkspaceSettings, AISettings, NotificationSettings, ApiKey, WebhookEndpoint, WebhookDelivery } from "@/lib/api/client";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -16,20 +20,35 @@ export const Route = createFileRoute("/settings")({
   component: Settings,
 });
 
+const AVAILABLE_EVENTS = ["ticket.created", "ticket.resolved", "ticket.escalated", "ai.action_suggested", "ai.action_executed"];
+
 function Settings() {
   const { data: ws, isLoading: wsLoading } = useWorkspaceSettings();
   const { data: ai, isLoading: aiLoading } = useAISettings();
   const { data: notif, isLoading: notifLoading } = useNotificationSettings();
+  const { data: apiKeys = [], isLoading: keysLoading } = useApiKeys();
+  const { data: endpoints = [], isLoading: epsLoading } = useWebhookEndpoints();
+  const { data: deliveries = [], isLoading: delLoading } = useWebhookDeliveries();
 
   const patchWs = usePatchWorkspace();
   const patchAi = usePatchAISettings();
   const patchNotif = usePatchNotifications();
+  const createKey = useCreateApiKey();
+  const revokeKey = useRevokeApiKey();
+  const rotateKey = useRotateApiKey();
+  const createEp = useCreateWebhookEndpoint();
+  const deleteEp = useDeleteWebhookEndpoint();
+  const testEp = useTestWebhookEndpoint();
+
+  const [newKeyName, setNewKeyName] = useState("");
+  const [newEpUrl, setNewEpUrl] = useState("");
+  const [newEpEvents, setNewEpEvents] = useState<string[]>(["ticket.resolved"]);
 
   return (
     <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 max-w-[900px] mx-auto">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Workspace and AI configuration.</p>
+        <p className="text-sm text-muted-foreground">Workspace, AI, and notification settings.</p>
       </header>
 
       <Section title="Workspace">
@@ -70,15 +89,168 @@ function Settings() {
           </>
         )}
       </Section>
+
+      <Section title="API Keys" icon={<Key className="h-4 w-4" />}>
+        {keysLoading ? <SkeletonRows n={2} /> : (
+          <>
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-border">
+              <input value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder="New key name…"
+                className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-primary"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newKeyName.trim()) {
+                    createKey.mutate({ name: newKeyName.trim() });
+                    setNewKeyName("");
+                  }
+                }}
+              />
+              <button onClick={() => { if (newKeyName.trim()) { createKey.mutate({ name: newKeyName.trim() }); setNewKeyName(""); } }}
+                disabled={createKey.isPending || !newKeyName.trim()}
+                className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+              >
+                <Plus className="h-3 w-3" /> Create
+              </button>
+            </div>
+            {apiKeys.length === 0 ? (
+              <p className="px-5 py-4 text-xs text-muted-foreground">No API keys yet.</p>
+            ) : apiKeys.map((k) => (
+              <ApiKeyRow key={k.id} keyData={k} onRevoke={() => revokeKey.mutate(k.id)} onRotate={() => rotateKey.mutate(k.id)} />
+            ))}
+          </>
+        )}
+      </Section>
+
+      <Section title="Webhooks" icon={<Webhook className="h-4 w-4" />}>
+        {epsLoading ? <SkeletonRows n={2} /> : (
+          <>
+            <div className="flex flex-col gap-2 px-5 py-3 border-b border-border">
+              <input value={newEpUrl} onChange={(e) => setNewEpUrl(e.target.value)}
+                placeholder="https://example.com/webhooks/relayai"
+                className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-primary"
+              />
+              <div className="flex items-center gap-2 flex-wrap">
+                {AVAILABLE_EVENTS.map((ev) => (
+                  <label key={ev} className="flex items-center gap-1 text-xs cursor-pointer">
+                    <input type="checkbox" checked={newEpEvents.includes(ev)}
+                      onChange={() => setNewEpEvents((prev) => prev.includes(ev) ? prev.filter((e) => e !== ev) : [...prev, ev])}
+                      className="accent-primary"
+                    />
+                    {ev}
+                  </label>
+                ))}
+              </div>
+              <button onClick={() => {
+                if (newEpUrl.trim() && newEpEvents.length > 0) {
+                  createEp.mutate({ url: newEpUrl.trim(), events: newEpEvents });
+                  setNewEpUrl("");
+                }
+              }}
+                disabled={createEp.isPending || !newEpUrl.trim() || newEpEvents.length === 0}
+                className="self-end inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+              >
+                <Plus className="h-3 w-3" /> Add endpoint
+              </button>
+            </div>
+            {endpoints.length === 0 ? (
+              <p className="px-5 py-4 text-xs text-muted-foreground">No webhook endpoints configured.</p>
+            ) : endpoints.map((ep) => (
+              <WebhookRow key={ep.id} ep={ep} onDelete={() => deleteEp.mutate(ep.id)} onTest={() => testEp.mutate(ep.id)} />
+            ))}
+          </>
+        )}
+        {deliveries.length > 0 && (
+          <div className="border-t border-border">
+            <div className="px-5 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent deliveries</div>
+            {deliveries.slice(0, 5).map((d) => (
+              <DeliveryRow key={d.id} delivery={d} />
+            ))}
+          </div>
+        )}
+      </Section>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, icon }: { title: string; children: React.ReactNode; icon?: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="border-b border-border px-5 py-3 text-sm font-semibold">{title}</div>
+      <div className="border-b border-border px-5 py-3 text-sm font-semibold flex items-center gap-2">
+        {icon}
+        {title}
+      </div>
       <div className="divide-y divide-border">{children}</div>
+    </div>
+  );
+}
+
+function ApiKeyRow({ keyData, onRevoke, onRotate }: { keyData: ApiKey; onRevoke: () => void; onRotate: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = (key: string) => {
+    navigator.clipboard.writeText(key).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  };
+  return (
+    <div className="px-5 py-3 text-sm flex items-center justify-between gap-4">
+      <div className="min-w-0">
+        <div className="font-medium">{keyData.name}</div>
+        <div className="text-xs text-muted-foreground font-mono">
+          {keyData.key_prefix}…{keyData.is_active ? "active" : "revoked"}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <button onClick={() => handleCopy(keyData.key_prefix)} title="Copy prefix"
+          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent">
+          <Copy className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={onRotate} title="Rotate key"
+          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent">
+          <RefreshCw className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={onRevoke} title="Revoke key"
+          className="rounded p-1 text-destructive/70 hover:text-destructive hover:bg-destructive/10">
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WebhookRow({ ep, onDelete, onTest }: { ep: WebhookEndpoint; onDelete: () => void; onTest: () => void }) {
+  return (
+    <div className="px-5 py-3 text-sm flex items-center justify-between gap-4">
+      <div className="min-w-0">
+        <div className="truncate font-mono text-xs">{ep.url}</div>
+        <div className="text-xs text-muted-foreground">
+          {ep.events.length} event{ep.events.length !== 1 ? "s" : ""}
+          {ep.is_active ? " · active" : " · inactive"}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <button onClick={onTest} title="Send test"
+          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent text-xs">
+          Test
+        </button>
+        <button onClick={onDelete} title="Delete endpoint"
+          className="rounded p-1 text-destructive/70 hover:text-destructive hover:bg-destructive/10">
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DeliveryRow({ delivery }: { delivery: WebhookDelivery }) {
+  const statusColor = delivery.status === "delivered" ? "text-success" :
+    delivery.status === "failed" ? "text-destructive" : "text-muted-foreground";
+  return (
+    <div className="px-5 py-2 text-xs flex items-center justify-between gap-4">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${statusColor.replace("text-", "bg-")}`} />
+        <span className="font-mono">{delivery.event_type}</span>
+      </div>
+      <div className="flex items-center gap-3 shrink-0 text-muted-foreground">
+        <span className={statusColor}>{delivery.status}</span>
+        <span>{delivery.attempts} attempt{delivery.attempts !== 1 ? "s" : ""}</span>
+      </div>
     </div>
   );
 }
