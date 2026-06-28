@@ -188,6 +188,7 @@ async def get_suggested_actions(ticket_id: str, db: AsyncSession = Depends(get_d
     return [
         {
             "id": a.id,
+            "ai_run_id": a.ai_run_id,
             "action_type": a.action_type,
             "payload": a.payload,
             "risk_level": a.risk_level,

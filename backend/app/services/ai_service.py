@@ -2,12 +2,15 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.db.models import AIRunORM, AIStepORM, AISuggestedActionORM, AuditLogORM, UserORM
+from app.db.models import AIRunORM, AIStepORM, AISuggestedActionORM, AuditLogORM, UserORM, TicketORM
 from app.ai_engine.graph import agent_graph
 from app.ai_engine.state import AgentState
 from app.repositories import ticket_repository
 from app.db.models import OrganizationSettingsORM
 from app.core.config import settings
+from app.core.ws_manager import manager
+from app.schemas.ticket import MessageCreate
+from app.services import ticket_service
 
 
 def _utc_now():
@@ -185,12 +188,25 @@ async def get_suggested_actions_for_run(db: AsyncSession, run_id: str) -> list:
     return result.scalars().all()
 
 
+async def _get_action_org_id(db: AsyncSession, action: AISuggestedActionORM) -> str | None:
+    """Load organisation_id from the action's ai_run or ticket."""
+    if action.ai_run_id:
+        r = await db.execute(select(AIRunORM).where(AIRunORM.id == action.ai_run_id))
+        run = r.scalar_one_or_none()
+        if run and run.organization_id:
+            return run.organization_id
+    t = await db.get(TicketORM, action.ticket_id)
+    return t.organization_id if t else None
+
+
 async def approve_action(db: AsyncSession, action_id: str, actor_user_id: str | None = None) -> AISuggestedActionORM | None:
     result = await db.execute(select(AISuggestedActionORM).where(AISuggestedActionORM.id == action_id))
     action = result.scalar_one_or_none()
     if not action:
         return None
-    # RBAC: only admin or manager can approve
+    if action.approval_status != "pending":
+        return None  # can only approve pending actions
+
     if actor_user_id:
         u = await db.execute(select(UserORM).where(UserORM.id == actor_user_id))
         user = u.scalar_one_or_none()
@@ -202,9 +218,9 @@ async def approve_action(db: AsyncSession, action_id: str, actor_user_id: str | 
     action.approved_at = _utc_now()
     await db.flush()
 
-    # Audit log
+    org_id = await _get_action_org_id(db, action)
     audit = AuditLogORM(
-        organization_id=action.ticket.organization_id if hasattr(action, "ticket") and action.ticket else None,
+        organization_id=org_id,
         actor_type="user",
         actor_user_id=actor_user_id,
         action="approve",
@@ -213,11 +229,19 @@ async def approve_action(db: AsyncSession, action_id: str, actor_user_id: str | 
         metadata_json={
             "action_type": action.action_type,
             "ticket_id": action.ticket_id,
+            "ai_run_id": action.ai_run_id,
         },
     )
     db.add(audit)
     await db.commit()
     await db.refresh(action)
+
+    await manager.broadcast_ticket({
+        "event": "ai_action_approved",
+        "ticket_id": action.ticket_id,
+        "action_id": action.id,
+        "approval_status": action.approval_status,
+    })
     return action
 
 
@@ -226,7 +250,9 @@ async def reject_action(db: AsyncSession, action_id: str, actor_user_id: str | N
     action = result.scalar_one_or_none()
     if not action:
         return None
-    # RBAC: only admin or manager can reject
+    if action.approval_status != "pending":
+        return None  # can only reject pending actions
+
     if actor_user_id:
         u = await db.execute(select(UserORM).where(UserORM.id == actor_user_id))
         user = u.scalar_one_or_none()
@@ -238,8 +264,9 @@ async def reject_action(db: AsyncSession, action_id: str, actor_user_id: str | N
     action.rejected_at = _utc_now()
     await db.flush()
 
+    org_id = await _get_action_org_id(db, action)
     audit = AuditLogORM(
-        organization_id=action.ticket.organization_id if hasattr(action, "ticket") and action.ticket else None,
+        organization_id=org_id,
         actor_type="user",
         actor_user_id=actor_user_id,
         action="reject",
@@ -248,11 +275,19 @@ async def reject_action(db: AsyncSession, action_id: str, actor_user_id: str | N
         metadata_json={
             "action_type": action.action_type,
             "ticket_id": action.ticket_id,
+            "ai_run_id": action.ai_run_id,
         },
     )
     db.add(audit)
     await db.commit()
     await db.refresh(action)
+
+    await manager.broadcast_ticket({
+        "event": "ai_action_rejected",
+        "ticket_id": action.ticket_id,
+        "action_id": action.id,
+        "approval_status": action.approval_status,
+    })
     return action
 
 
@@ -262,55 +297,169 @@ async def execute_suggested_action(db: AsyncSession, action_id: str, executor_us
     if not action:
         return {"error": "Action not found"}
 
+    if action.approval_status == "rejected":
+        return {"error": "Action was rejected and cannot be executed"}
+    if action.approval_status == "executed":
+        return {"error": "Action has already been executed"}
     if action.requires_approval and action.approval_status != "approved":
         return {"error": "Action not approved"}
+    if action.approval_status not in ("pending", "approved"):
+        return {"error": f"Action in state '{action.approval_status}' cannot be executed"}
 
-    # Execute the underlying tool using tool_service
-    from app.services.tool_service import invoke_tool
-
-    payload = action.payload or {}
-    arguments = payload.get("arguments") or {}
-
-    # RBAC check: only admin/manager can execute
     if executor_user_id:
         u = await db.execute(select(UserORM).where(UserORM.id == executor_user_id))
         user = u.scalar_one_or_none()
         if not user or user.role not in ("admin", "manager"):
             return {"error": "unauthorized"}
 
-    # record audit of attempt
+    org_id = await _get_action_org_id(db, action)
+    payload = action.payload or {}
+    ticket_id = action.ticket_id
+
     audit_attempt = AuditLogORM(
-        organization_id=action.ticket.organization_id if hasattr(action, "ticket") and action.ticket else None,
+        organization_id=org_id,
         actor_type="user",
         actor_user_id=executor_user_id,
         action="execute_attempt",
         resource_type="ai_suggested_action",
         resource_id=action.id,
-        metadata_json={"action_type": action.action_type, "ticket_id": action.ticket_id},
+        metadata_json={
+            "action_type": action.action_type,
+            "ticket_id": ticket_id,
+            "ai_run_id": action.ai_run_id,
+        },
     )
     db.add(audit_attempt)
     await db.flush()
 
     try:
-        res = await invoke_tool(db, action.ai_run_id, action.ticket_id, action.action_type, arguments=arguments, requester_user_id=executor_user_id, force_execute=True)
-        # Mark action as executed in approval_status
+        res = await _perform_action(db, action, executor_user_id)
+
         action.approval_status = "executed"
         action.approved_by_user_id = executor_user_id
         action.approved_at = _utc_now()
         await db.flush()
 
         audit_success = AuditLogORM(
-            organization_id=action.ticket.organization_id if hasattr(action, "ticket") and action.ticket else None,
+            organization_id=org_id,
             actor_type="user",
             actor_user_id=executor_user_id,
             action="execute",
             resource_type="ai_suggested_action",
             resource_id=action.id,
-            metadata_json={"result": res},
+            metadata_json={
+                "action_type": action.action_type,
+                "ticket_id": ticket_id,
+                "ai_run_id": action.ai_run_id,
+                "result": res,
+            },
         )
         db.add(audit_success)
         await db.commit()
-        return {"result": res}
+
+        await manager.broadcast_ticket({
+            "event": "ai_action_executed",
+            "ticket_id": ticket_id,
+            "action_id": action.id,
+            "approval_status": "executed",
+        })
+        return res
     except Exception as e:
         await db.rollback()
+
+        error_audit = AuditLogORM(
+            organization_id=org_id,
+            actor_type="user",
+            actor_user_id=executor_user_id,
+            action="execute_failed",
+            resource_type="ai_suggested_action",
+            resource_id=action.id,
+            metadata_json={
+                "action_type": action.action_type,
+                "ticket_id": ticket_id,
+                "ai_run_id": action.ai_run_id,
+                "error": str(e),
+            },
+        )
+        db.add(error_audit)
+        await db.commit()
         return {"error": str(e)}
+
+
+AGENT_ACTION_TO_TOOL = {
+    "resolve": "resolve_ticket",
+    "draft_only": "send_customer_reply",
+    "ask_customer": "send_customer_reply",
+}
+
+
+async def _perform_action(db: AsyncSession, action: AISuggestedActionORM, executor_user_id: str | None = None) -> dict:
+    """Execute the real action, then return a result dict."""
+    action_type = action.action_type
+    payload = action.payload or {}
+    ticket_id = action.ticket_id
+    response_text = payload.get("response", "")
+    citations = payload.get("citations", [])
+
+    # Map agent decision names to tool names
+    tool_name = AGENT_ACTION_TO_TOOL.get(action_type, action_type)
+
+    # ── Resolve ticket ─────────────────────────────────────────────────────
+    if tool_name == "resolve_ticket":
+        ticket = await ticket_service.resolve_ticket(db, ticket_id)
+        if not ticket:
+            raise ValueError("Ticket not found")
+        if response_text:
+            await ticket_service.add_message(
+                db, ticket_id,
+                MessageCreate(body=response_text, is_internal=False, sender_type="agent"),
+            )
+        return {"ticket_id": ticket_id, "status": "resolved", "action": "resolve"}
+
+    # ── Send customer reply (draft_only / ask_customer) ────────────────────
+    if tool_name == "send_customer_reply":
+        msg = await ticket_service.add_message(
+            db, ticket_id,
+            MessageCreate(body=response_text, is_internal=False, sender_type="agent"),
+        )
+        result = {"ticket_id": ticket_id, "message_id": msg.id, "is_internal": False, "action": action_type}
+        if citations:
+            result["citations"] = citations
+        return result
+
+    # ── Escalate ───────────────────────────────────────────────────────────
+    if tool_name == "escalate":
+        ticket = await ticket_service.escalate_ticket(db, ticket_id)
+        if not ticket:
+            raise ValueError("Ticket not found")
+        escalation_note = payload.get("escalation_note", "")
+        if escalation_note:
+            await ticket_service.add_message(
+                db, ticket_id,
+                MessageCreate(body=escalation_note, is_internal=True, sender_type="agent"),
+            )
+        return {"ticket_id": ticket_id, "status": "in_progress", "action": "escalate"}
+
+    # ── add_internal_note (direct, no tool mapping) ────────────────────────
+    if action_type == "add_internal_note":
+        msg = await ticket_service.add_message(
+            db, ticket_id,
+            MessageCreate(body=response_text, is_internal=True, sender_type="agent"),
+        )
+        return {"ticket_id": ticket_id, "message_id": msg.id, "is_internal": True, "action": "add_internal_note"}
+
+    # ── no_action / noop ───────────────────────────────────────────────────
+    if action_type in ("no_action", "noop"):
+        return {"action": "no_action", "skipped": True}
+
+    # ── Fallback: delegate to tool_service ─────────────────────────────────
+    from app.services.tool_service import invoke_tool
+
+    arguments = payload.get("arguments") or {}
+    res = await invoke_tool(
+        db, action.ai_run_id, ticket_id, tool_name,
+        arguments=arguments,
+        requester_user_id=executor_user_id,
+        force_execute=True,
+    )
+    return {"action": action_type, "result": res}
