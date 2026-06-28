@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Index, JSON, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, JSON, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, TimestampMixin, make_id
+from app.models.base import Base, TimestampMixin, make_id, utc_now
 
 
 class KnowledgeSourceORM(TimestampMixin, Base):
@@ -67,5 +67,8 @@ class KnowledgeIngestionJobORM(TimestampMixin, Base):
     organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), nullable=False)
     document_id: Mapped[str] = mapped_column(ForeignKey("knowledge_documents.id"), nullable=False)
     status: Mapped[str] = mapped_column(String, default="queued", nullable=False)
+    chunks_created: Mapped[int | None] = mapped_column(Integer)
     error: Mapped[str | None] = mapped_column(String)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
     metadata_json: Mapped[dict | None] = mapped_column("metadata", JSON)

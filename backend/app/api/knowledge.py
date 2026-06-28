@@ -4,7 +4,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 import hashlib
+import os
 
+from datetime import UTC, datetime
 from app.db.database import get_db
 from app.db.models import (
     KnowledgeSourceORM, KnowledgeDocumentORM,
@@ -123,9 +125,12 @@ async def upload_document(
     db.add(doc)
     await db.flush()
 
-    # Store raw text for ingestion
-    doc.storage_path = f"uploads/{doc.id}.txt"
-    import os
+    # Store file for ingestion (preserve original extension)
+    ext = ".txt"
+    if file.filename:
+        _, ext = os.path.splitext(file.filename)
+        ext = ext or ".txt"
+    doc.storage_path = f"uploads/{doc.id}{ext}"
     os.makedirs("uploads", exist_ok=True)
     with open(doc.storage_path, "wb") as f:
         f.write(content)
@@ -152,6 +157,7 @@ async def get_document(
 @router.post("/documents/{document_id}/ingest")
 async def ingest_document(
     document_id: str,
+    force: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: dict | None = Depends(optional_current_user),
 ):
@@ -161,10 +167,27 @@ async def ingest_document(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Forbidden")
 
+    # Checksum-based skip: if same file was already ingested under this source, skip
+    if doc.checksum and not force:
+        existing = await db.execute(
+            select(KnowledgeDocumentORM).where(
+                KnowledgeDocumentORM.source_id == doc.source_id,
+                KnowledgeDocumentORM.checksum == doc.checksum,
+                KnowledgeDocumentORM.status == "ingested",
+                KnowledgeDocumentORM.id != doc.id,
+            ).limit(1)
+        )
+        if existing.scalar_one_or_none():
+            doc.status = "ingested"
+            await db.commit()
+            return {"document_id": document_id, "status": "ingested", "skipped": True}
+
+    now = datetime.now(UTC).replace(tzinfo=None)
     job = KnowledgeIngestionJobORM(
         organization_id=doc.organization_id,
         document_id=document_id,
         status="queued" if settings.REDIS_URL else "running",
+        started_at=now if not settings.REDIS_URL else None,
     )
     db.add(job)
     doc.status = "queued" if settings.REDIS_URL else "ingesting"
@@ -180,6 +203,7 @@ async def ingest_document(
         except Exception:
             doc.status = "ingesting"
             job.status = "running"
+            job.started_at = now
             await db.commit()
 
     # Resolve source name for citation metadata
@@ -198,11 +222,14 @@ async def ingest_document(
         )
         doc.status = "ingested"
         job.status = "completed"
+        job.completed_at = datetime.now(UTC).replace(tzinfo=None)
+        job.chunks_created = result.get("ingested", 0)
         job.metadata_json = result
     except Exception as e:
         doc.status = "failed"
         job.status = "failed"
         job.error = str(e)
+        job.completed_at = datetime.now(UTC).replace(tzinfo=None)
 
     await db.commit()
     return {"document_id": document_id, "status": doc.status, "job_id": job.id}
@@ -232,6 +259,34 @@ async def search_knowledge(body: SearchRequest, current_user: dict | None = Depe
         body.query, body.top_k, organization_id=org_id
     )
     return {"query": body.query, "results": results}
+
+
+@router.get("/documents/{document_id}/jobs")
+async def list_ingestion_jobs(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict | None = Depends(optional_current_user),
+):
+    doc = await _get_doc_or_404(db, document_id)
+    try:
+        assert_org_access(doc.organization_id, current_user)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    result = await db.execute(
+        select(KnowledgeIngestionJobORM)
+        .where(KnowledgeIngestionJobORM.document_id == document_id)
+        .order_by(KnowledgeIngestionJobORM.created_at.desc())
+    )
+    jobs = result.scalars().all()
+    return [
+        {
+            "id": j.id, "document_id": j.document_id, "status": j.status,
+            "chunks_created": j.chunks_created, "error": j.error,
+            "started_at": j.started_at, "completed_at": j.completed_at,
+            "created_at": j.created_at,
+        }
+        for j in jobs
+    ]
 
 
 @router.get("/documents/{document_id}/chunks")
