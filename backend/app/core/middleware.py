@@ -1,20 +1,18 @@
-from fastapi import Request
-from starlette.middleware.base import BaseHTTPMiddleware
-from typing import Callable
-from app.core.config import settings
-import base64
 import logging
-from fastapi.responses import JSONResponse
-from fastapi import HTTPException
 import time
+import uuid
 from collections import defaultdict
-from typing import Dict
-try:
-    import jwt  # type: ignore
-    _HAS_PYJWT = True
-except Exception:
-    jwt = None
-    _HAS_PYJWT = False
+from typing import Callable, Dict
+
+import jwt
+from fastapi import HTTPException, Request
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.core.config import settings
+
+logger = logging.getLogger("app.http")
+
 try:
     import aioredis  # type: ignore
     _HAS_AIREDIS = True
@@ -27,50 +25,66 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable):
         request.state.current_user = None
 
-        # JWT auth (API key is resolved via dependency in each route)
         auth = request.headers.get("authorization") or request.headers.get("Authorization")
         if auth and auth.lower().startswith("bearer "):
             token = auth.split(" ", 1)[1]
             try:
-                if _HAS_PYJWT:
-                    payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
-                    request.state.current_user = {
-                        "auth_method": "jwt",
-                        "user_id": payload.get("sub"),
-                        "organization_id": payload.get("org"),
-                        "role": payload.get("role"),
-                    }
-                else:
-                    try:
-                        raw = base64.urlsafe_b64decode(token.encode()).decode()
-                        parts = raw.split(":")
-                        request.state.current_user = {
-                            "auth_method": "jwt",
-                            "user_id": parts[0] if len(parts) > 0 else None,
-                            "organization_id": parts[1] if len(parts) > 1 else None,
-                            "role": parts[2] if len(parts) > 2 else None,
-                        }
-                    except Exception:
-                        request.state.current_user = None
+                payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+                request.state.current_user = {
+                    "auth_method": "jwt",
+                    "user_id": payload.get("sub"),
+                    "organization_id": payload.get("org"),
+                    "role": payload.get("role"),
+                }
             except Exception:
                 request.state.current_user = None
 
         return await call_next(request)
 
 
-class StructuredErrorMiddleware(BaseHTTPMiddleware):
+class StructuredLogMiddleware(BaseHTTPMiddleware):
+    """Structured request logging with request ID, duration, and auth context."""
+
     async def dispatch(self, request: Request, call_next: Callable):
-        logger = logging.getLogger("app.middleware")
-        logger.info("%s %s", request.method, request.url)
+        request_id = str(uuid.uuid4())[:8]
+        request.state.request_id = request_id
+        start = time.monotonic()
+
         try:
             response = await call_next(request)
-            logger.info("%s %s -> %s", request.method, request.url, response.status_code)
-            return response
         except HTTPException as he:
+            duration = time.monotonic() - start
+            user = getattr(request.state, "current_user", None)
+            logger.info(
+                "request_id=%s method=%s path=%s status=%d duration=%.3f org=%s user=%s",
+                request_id, request.method, request.url.path,
+                he.status_code, duration,
+                (user or {}).get("organization_id", "-"),
+                (user or {}).get("user_id", "-"),
+            )
             return JSONResponse(status_code=he.status_code, content={"error": he.detail})
-        except Exception as e:
-            logger.exception("Unhandled exception processing request")
+        except Exception:
+            duration = time.monotonic() - start
+            user = getattr(request.state, "current_user", None)
+            logger.exception(
+                "request_id=%s method=%s path=%s status=500 duration=%.3f org=%s user=%s",
+                request_id, request.method, request.url.path,
+                duration,
+                (user or {}).get("organization_id", "-"),
+                (user or {}).get("user_id", "-"),
+            )
             return JSONResponse(status_code=500, content={"error": "internal_server_error"})
+
+        duration = time.monotonic() - start
+        user = getattr(request.state, "current_user", None)
+        logger.info(
+            "request_id=%s method=%s path=%s status=%d duration=%.3f org=%s user=%s",
+            request_id, request.method, request.url.path,
+            response.status_code, duration,
+            (user or {}).get("organization_id", "-"),
+            (user or {}).get("user_id", "-"),
+        )
+        return response
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

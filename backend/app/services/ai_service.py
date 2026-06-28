@@ -89,6 +89,9 @@ async def process_ai_run(db: AsyncSession, ai_run_id: str) -> dict:
         ai_run.started_at = _utc_now()
     await db.commit()
 
+    from app.core.metrics import ai_runs_total, ai_runs_active
+    ai_runs_active.inc()
+
     initial_state = _build_initial_state(ticket, ai_run)
     initial_state["db"] = db
 
@@ -96,12 +99,16 @@ async def process_ai_run(db: AsyncSession, ai_run_id: str) -> dict:
         await agent_graph.ainvoke(initial_state)
         # persist_ai_run node already committed; refresh to get final state
         await db.refresh(ai_run)
+        ai_runs_total.labels(status="success").inc()
     except Exception as e:
         ai_run.status = "failed"
         ai_run.error = str(e)
         ai_run.completed_at = _utc_now()
         await db.commit()
         await db.refresh(ai_run)
+        ai_runs_total.labels(status="failed").inc()
+    finally:
+        ai_runs_active.dec()
 
     return {
         "run_id": ai_run.id,

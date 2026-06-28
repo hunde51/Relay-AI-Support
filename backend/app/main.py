@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.agent import router as agent_router
 from app.api.ai import router as ai_router
@@ -14,7 +14,9 @@ from app.api.settings import router as settings_router
 from app.api.tickets import router as tickets_router
 from app.api.webhooks import router as webhooks_router
 from app.api.websockets import router as ws_router
-from app.core.middleware import AuthMiddleware, StructuredErrorMiddleware, RateLimitMiddleware
+from app.core.middleware import AuthMiddleware, StructuredLogMiddleware, RateLimitMiddleware
+from app.core.metrics import request_duration
+import time
 
 app = FastAPI(title="RelayAI Support API")
 
@@ -27,8 +29,16 @@ def root():
     }
 
 app.add_middleware(AuthMiddleware)
-app.add_middleware(StructuredErrorMiddleware)
+app.add_middleware(StructuredLogMiddleware)
 app.add_middleware(RateLimitMiddleware, max_requests=200, window_seconds=60)
+
+
+@app.middleware("http")
+async def _prometheus_duration(request: Request, call_next):
+    start = time.monotonic()
+    response = await call_next(request)
+    request_duration.observe(time.monotonic() - start)
+    return response
 
 app.add_middleware(
     CORSMiddleware,

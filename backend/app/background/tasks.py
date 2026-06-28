@@ -12,6 +12,14 @@ from app.services import rag_service
 
 async def _process_ai_run_async(ai_run_id: str) -> dict:
     async with SessionLocal() as db:
+        run = await db.execute(select(AIRunORM).where(AIRunORM.id == ai_run_id))
+        ai_run = run.scalar_one_or_none()
+        if ai_run and ai_run.status == "failed":
+            ai_run.status = "running"
+            ai_run.error = None
+            ai_run.completed_at = None
+            ai_run.started_at = datetime.now(UTC).replace(tzinfo=None)
+            await db.commit()
         return await process_ai_run(db, ai_run_id)
 
 
