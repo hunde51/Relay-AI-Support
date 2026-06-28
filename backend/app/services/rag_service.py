@@ -16,12 +16,12 @@ def _content_hash(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-async def ingest_documents() -> dict:
+async def ingest_documents(organization_id: str = "__seed__") -> dict:
     """Ingest built-in sample docs (no DB chunk tracking — seed only)."""
     docs = []
     for file in DOCS_DIR.glob("*.txt"):
         text = file.read_text()
-        chunks = splitter.create_documents([text], metadatas=[{"source": file.name}])
+        chunks = splitter.create_documents([text], metadatas=[{"source": file.name, "organization_id": organization_id}])
         docs.extend(chunks)
 
     store = get_vector_store()
@@ -47,7 +47,18 @@ async def ingest_document_file(
     if not storage_path or not Path(storage_path).exists():
         raise FileNotFoundError(f"File not found: {storage_path}")
 
-    text = Path(storage_path).read_text(errors="replace")
+    # Extract text — PDF or plain text
+    if storage_path.endswith(".pdf"):
+        import pdfplumber
+        text_parts = []
+        with pdfplumber.open(storage_path) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text_parts.append(page_text)
+        text = "\n".join(text_parts)
+    else:
+        text = Path(storage_path).read_text(errors="replace")
     raw_chunks = splitter.split_text(text)
 
     # Load existing hashes for this document to avoid re-ingesting unchanged chunks
@@ -120,18 +131,20 @@ async def search_knowledge(
     top_k: int = 4,
     organization_id: str | None = None,
     source_filter: str | None = None,
+    score_threshold: float = 0.5,
 ) -> list[dict]:
     """
     Vector similarity search.
     Returns results with chunk_id, document_id, source, content, score.
     Filters by organization_id and optionally source via Qdrant payload filter.
+    Results below score_threshold are excluded.
     """
     store = get_vector_store()
 
     # Build Qdrant filter if needed
     filter_obj = None
     if organization_id or source_filter:
-        from qdrant_client.models import Filter, FieldCondition, MatchValue, Must
+        from qdrant_client.models import Filter, FieldCondition, MatchValue
 
         conditions = []
         if organization_id:
@@ -155,4 +168,5 @@ async def search_knowledge(
             "score": round(float(score), 4),
         }
         for doc, score in results
+        if score >= score_threshold
     ]

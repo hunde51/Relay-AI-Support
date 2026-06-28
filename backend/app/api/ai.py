@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.database import get_db
-from app.db.models import AIRunORM, AIToolCallORM, TicketORM, AISuggestedActionORM, AuditLogORM
+from app.db.models import AIRunORM, AIResponseORM, AIToolCallORM, TicketORM, AISuggestedActionORM, AuditLogORM
 from app.services import ai_service
 from app.api.auth import get_current_user, optional_current_user
 from fastapi import Request
@@ -77,8 +77,13 @@ async def list_runs(ticket_id: str, db: AsyncSession = Depends(get_db), current_
             except PermissionError:
                 raise HTTPException(status_code=403, detail="Forbidden")
     runs = await ai_service.get_runs_for_ticket(db, ticket_id)
-    return [
-        {
+    result_list = []
+    for r in runs:
+        resp_result = await db.execute(
+            select(AIResponseORM).where(AIResponseORM.ai_run_id == r.id).limit(1)
+        )
+        response = resp_result.scalar_one_or_none()
+        result_list.append({
             "id": r.id,
             "status": r.status,
             "final_decision": r.final_decision,
@@ -88,20 +93,28 @@ async def list_runs(ticket_id: str, db: AsyncSession = Depends(get_db), current_
             "completed_at": r.completed_at,
             "error": r.error,
             "created_at": r.created_at,
-        }
-        for r in runs
-    ]
+            "response_body": response.body if response else None,
+            "citations": response.citations if response else None,
+        })
+    return result_list
 
 
 @router.get("/runs/{run_id}")
 async def get_run(run_id: str, db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
     run = await _assert_run_access(db, run_id, current_user)
+    # Fetch associated response with citations
+    resp_result = await db.execute(
+        select(AIResponseORM).where(AIResponseORM.ai_run_id == run_id).limit(1)
+    )
+    response = resp_result.scalar_one_or_none()
     return {
         "id": run.id, "ticket_id": run.ticket_id, "status": run.status,
         "final_decision": run.final_decision, "confidence": run.confidence,
         "risk_level": run.risk_level, "started_at": run.started_at,
         "completed_at": run.completed_at, "error": run.error,
         "created_at": run.created_at,
+        "response_body": response.body if response else None,
+        "citations": response.citations if response else None,
     }
 
 
@@ -122,6 +135,26 @@ async def get_tool_calls(run_id: str, db: AsyncSession = Depends(get_db), curren
         }
         for c in calls
     ]
+
+
+@router.get("/runs/{run_id}/response")
+async def get_run_response(run_id: str, db: AsyncSession = Depends(get_db), current_user: dict | None = Depends(optional_current_user)):
+    await _assert_run_access(db, run_id, current_user)
+    resp_result = await db.execute(
+        select(AIResponseORM).where(AIResponseORM.ai_run_id == run_id).limit(1)
+    )
+    response = resp_result.scalar_one_or_none()
+    if not response:
+        raise HTTPException(status_code=404, detail="No response for this run")
+    return {
+        "id": response.id,
+        "ai_run_id": response.ai_run_id,
+        "ticket_id": response.ticket_id,
+        "body": response.body,
+        "citations": response.citations,
+        "confidence": response.confidence,
+        "created_at": response.created_at,
+    }
 
 
 @router.get("/runs/{run_id}/steps")
