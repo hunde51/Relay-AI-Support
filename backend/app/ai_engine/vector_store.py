@@ -5,12 +5,12 @@ from langchain_qdrant import QdrantVectorStore
 from app.core.config import require_gemini_api_key
 
 COLLECTION_NAME = "knowledge_base"
-VECTOR_SIZE = 768  # Gemini embedding-001 output size
+VECTOR_SIZE = 768  # Gemini text-embedding-004 output size
 
 
 def get_embeddings():
     return GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
+        model="models/text-embedding-004",
         google_api_key=require_gemini_api_key(),
     )
 

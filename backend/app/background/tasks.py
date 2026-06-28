@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -26,6 +27,8 @@ async def _process_document_ingestion_async(job_id: str) -> dict:
         if not doc:
             job.status = "failed"
             job.error = "Document not found"
+            job.started_at = datetime.now(UTC).replace(tzinfo=None)
+            job.completed_at = datetime.now(UTC).replace(tzinfo=None)
             await db.commit()
             return {"error": "Document not found"}
 
@@ -35,8 +38,10 @@ async def _process_document_ingestion_async(job_id: str) -> dict:
             source = src_result.scalar_one_or_none()
             source_name = source.name if source else ""
 
+        now = datetime.now(UTC).replace(tzinfo=None)
         try:
             job.status = "running"
+            job.started_at = now
             doc.status = "ingesting"
             await db.commit()
 
@@ -51,6 +56,8 @@ async def _process_document_ingestion_async(job_id: str) -> dict:
 
             doc.status = "ingested"
             job.status = "completed"
+            job.completed_at = datetime.now(UTC).replace(tzinfo=None)
+            job.chunks_created = result.get("ingested", 0)
             job.metadata_json = result
             await db.commit()
             return {"status": "completed", "job_id": job.id, "result": result}
@@ -58,6 +65,7 @@ async def _process_document_ingestion_async(job_id: str) -> dict:
             doc.status = "failed"
             job.status = "failed"
             job.error = str(exc)
+            job.completed_at = datetime.now(UTC).replace(tzinfo=None)
             await db.commit()
             return {"status": "failed", "job_id": job.id, "error": str(exc)}
 
