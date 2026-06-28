@@ -68,6 +68,12 @@ desktop.ini
 # TypeScript cache
 *.tsbuildinfo
 
+# Qdrant local vector store
+.qdrant/
+
+# Uploaded knowledge documents
+uploads/
+
 # Temp files
 *.tmp
 *.temp
