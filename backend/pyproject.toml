@@ -26,6 +26,8 @@ dependencies = [
     "qdrant-client>=1.18.0",
     "sqlalchemy>=2.0.36",
     "uvicorn[standard]>=0.48.0",
+    "cryptography>=41.0.0",
+    "httpx>=0.28.1",
 ]
 
 [tool.fastapi]

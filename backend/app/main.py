@@ -14,6 +14,7 @@ from app.api.settings import router as settings_router
 from app.api.tickets import router as tickets_router
 from app.api.webhooks import router as webhooks_router
 from app.api.websockets import router as ws_router
+from app.api.email_integration import router as email_router
 from app.core.middleware import AuthMiddleware, StructuredLogMiddleware, RateLimitMiddleware
 from app.core.metrics import request_duration
 import time
@@ -61,6 +62,7 @@ app.include_router(ws_router)
 app.include_router(api_keys_router)
 app.include_router(external_router)
 app.include_router(webhooks_router)
+app.include_router(email_router)
 
 
 @app.get("/health")
