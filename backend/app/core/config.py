@@ -11,6 +11,15 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str | None = None
     REDIS_URL: str | None = None
 
+    # Email integration
+    EMAIL_ENCRYPTION_KEY: str = ""
+    GMAIL_CLIENT_ID: str = ""
+    GMAIL_CLIENT_SECRET: str = ""
+    GMAIL_REDIRECT_URI: str = "http://localhost:8000/settings/email/gmail/callback"
+    OUTLOOK_CLIENT_ID: str = ""
+    OUTLOOK_CLIENT_SECRET: str = ""
+    OUTLOOK_REDIRECT_URI: str = "http://localhost:8000/settings/email/outlook/callback"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @field_validator("JWT_SECRET")
@@ -44,4 +53,11 @@ except Exception as e:
         JWT_SECRET = "dev-only-jwt-secret-change-me-32chars"
         GEMINI_API_KEY = None
         REDIS_URL = None
+        EMAIL_ENCRYPTION_KEY = ""
+        GMAIL_CLIENT_ID = ""
+        GMAIL_CLIENT_SECRET = ""
+        GMAIL_REDIRECT_URI = ""
+        OUTLOOK_CLIENT_ID = ""
+        OUTLOOK_CLIENT_SECRET = ""
+        OUTLOOK_REDIRECT_URI = ""
     settings = DummySettings() # type: ignore

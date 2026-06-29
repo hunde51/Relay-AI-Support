@@ -21,4 +21,14 @@ celery_app.conf.update(
     broker_connection_retry_on_startup=True,
     task_track_started=True,
     worker_prefetch_multiplier=1,
+    beat_schedule={
+        "poll-gmail-every-60s": {
+            "task": "app.background.tasks.poll_gmail_task",
+            "schedule": 60.0,
+        },
+        "poll-outlook-every-60s": {
+            "task": "app.background.tasks.poll_outlook_task",
+            "schedule": 60.0,
+        },
+    },
 )
