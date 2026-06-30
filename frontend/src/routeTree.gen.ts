@@ -14,6 +14,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as KnowledgeBaseRouteImport } from './routes/knowledge-base'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as AiInsightsRouteImport } from './routes/ai-insights'
+import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TicketsIdRouteImport } from './routes/tickets.$id'
 import { Route as CustomersIdRouteImport } from './routes/customers.$id'
@@ -43,6 +44,11 @@ const AiInsightsRoute = AiInsightsRouteImport.update({
   path: '/ai-insights',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AcceptInviteRoute = AcceptInviteRouteImport.update({
+  id: '/accept-invite',
+  path: '/accept-invite',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -61,6 +67,7 @@ const CustomersIdRoute = CustomersIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/accept-invite': typeof AcceptInviteRoute
   '/ai-insights': typeof AiInsightsRoute
   '/customers': typeof CustomersRouteWithChildren
   '/knowledge-base': typeof KnowledgeBaseRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/accept-invite': typeof AcceptInviteRoute
   '/ai-insights': typeof AiInsightsRoute
   '/customers': typeof CustomersRouteWithChildren
   '/knowledge-base': typeof KnowledgeBaseRoute
@@ -82,6 +90,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/accept-invite': typeof AcceptInviteRoute
   '/ai-insights': typeof AiInsightsRoute
   '/customers': typeof CustomersRouteWithChildren
   '/knowledge-base': typeof KnowledgeBaseRoute
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/accept-invite'
     | '/ai-insights'
     | '/customers'
     | '/knowledge-base'
@@ -104,6 +114,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/accept-invite'
     | '/ai-insights'
     | '/customers'
     | '/knowledge-base'
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/accept-invite'
     | '/ai-insights'
     | '/customers'
     | '/knowledge-base'
@@ -125,6 +137,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AcceptInviteRoute: typeof AcceptInviteRoute
   AiInsightsRoute: typeof AiInsightsRoute
   CustomersRoute: typeof CustomersRouteWithChildren
   KnowledgeBaseRoute: typeof KnowledgeBaseRoute
@@ -167,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/ai-insights'
       fullPath: '/ai-insights'
       preLoaderRoute: typeof AiInsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/accept-invite': {
+      id: '/accept-invite'
+      path: '/accept-invite'
+      fullPath: '/accept-invite'
+      preLoaderRoute: typeof AcceptInviteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -218,6 +238,7 @@ const TicketsRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AcceptInviteRoute: AcceptInviteRoute,
   AiInsightsRoute: AiInsightsRoute,
   CustomersRoute: CustomersRouteWithChildren,
   KnowledgeBaseRoute: KnowledgeBaseRoute,

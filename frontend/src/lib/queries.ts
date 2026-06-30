@@ -30,6 +30,8 @@ export const keys = {
   webhookEndpoints: ["webhooks", "endpoints"] as const,
   webhookDeliveries:["webhooks", "deliveries"] as const,
   widgetKeys:       ["settings", "widget"] as const,
+  invitations:      ["invitations"] as const,
+  members:          ["invitations", "members"] as const,
 };
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -322,6 +324,46 @@ export const useRevokeWidgetKey = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.widgetKeys }),
   });
 };
+
+// ── Invitations ──────────────────────────────────────────────────────────────
+export const useInvitations = () =>
+  useQuery({ queryKey: keys.invitations, queryFn: api.invitations.list, staleTime: 30_000 });
+
+export const useTeamMembers = () =>
+  useQuery({ queryKey: keys.members, queryFn: api.invitations.members, staleTime: 30_000 });
+
+export const useCreateInvitation = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { email: string; role: string }) => api.invitations.create(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.invitations });
+      qc.invalidateQueries({ queryKey: keys.members });
+    },
+  });
+};
+
+export const useRevokeInvitation = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.invitations.revoke(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.invitations }),
+  });
+};
+
+export const useValidateInvite = (token: string) =>
+  useQuery({
+    queryKey: ["invitations", "validate", token] as const,
+    queryFn: () => api.invitations.validate(token),
+    enabled: Boolean(token),
+    retry: false,
+    staleTime: 300_000,
+  });
+
+export const useAcceptInvitation = () =>
+  useMutation({
+    mutationFn: (data: { token: string; name: string; password: string }) => api.invitations.accept(data),
+  });
 
 export const usePatchNotifications = () => {
   const qc = useQueryClient();

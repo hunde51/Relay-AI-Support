@@ -214,6 +214,41 @@ export type WidgetKey = {
 
 export type WidgetKeyWithSecret = WidgetKey & { key: string };
 
+export type Invitation = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  expires_at: string;
+  created_at: string;
+};
+
+export type TeamMember = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type InviteValidateResponse = {
+  valid: boolean;
+  email?: string;
+  organization_name?: string;
+  role?: string;
+  expires_at?: string;
+  message?: string;
+};
+
+export type InviteAcceptResponse = {
+  access_token: string;
+  token_type: string;
+  user_id: string;
+  organization_id: string;
+  role: string;
+};
+
 export const api = {
   tickets: {
     list: (params?: {
@@ -429,6 +464,27 @@ export const api = {
       }),
     revoke: (id: string): Promise<void> =>
       request<void>(`${BASE}/settings/widget/${id}`, { method: "DELETE" }),
+  },
+
+  invitations: {
+    list: (): Promise<Invitation[]> => request<Invitation[]>(`${BASE}/invitations`),
+    create: (data: { email: string; role: string }): Promise<Invitation> =>
+      request<Invitation>(`${BASE}/invitations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+    revoke: (id: string): Promise<void> =>
+      request<void>(`${BASE}/invitations/${id}`, { method: "DELETE" }),
+    validate: (token: string): Promise<InviteValidateResponse> =>
+      request<InviteValidateResponse>(`${BASE}/invitations/validate/${encodeURIComponent(token)}`),
+    accept: (data: { token: string; name: string; password: string }): Promise<InviteAcceptResponse> =>
+      request<InviteAcceptResponse>(`${BASE}/invitations/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+    members: (): Promise<TeamMember[]> => request<TeamMember[]>(`${BASE}/invitations/members`),
   },
 
   // Legacy — kept for backward compat with agent.py route
