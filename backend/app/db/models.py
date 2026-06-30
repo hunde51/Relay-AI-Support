@@ -34,6 +34,7 @@ from app.models import (  # noqa: F401
     AIToolDefinitionORM,
     ApiKeyORM,
     WidgetKeyORM,
+    InvitationORM,
     AuditLogORM,
     NotificationORM,
     WebhookEndpointORM,

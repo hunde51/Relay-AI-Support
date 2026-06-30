@@ -11,6 +11,14 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str | None = None
     REDIS_URL: str | None = None
 
+    # SMTP settings (for transactional emails)
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAIL_FROM: str = "noreply@relayai.io"
+    APP_BASE_URL: str = "http://localhost:8000"
+
     # Email integration
     EMAIL_ENCRYPTION_KEY: str = ""
     GMAIL_CLIENT_ID: str = ""
@@ -53,6 +61,12 @@ except Exception as e:
         JWT_SECRET = "dev-only-jwt-secret-change-me-32chars"
         GEMINI_API_KEY = None
         REDIS_URL = None
+        SMTP_HOST = ""
+        SMTP_PORT = 587
+        SMTP_USER = ""
+        SMTP_PASSWORD = ""
+        EMAIL_FROM = "noreply@relayai.io"
+        APP_BASE_URL = "http://localhost:8000"
         EMAIL_ENCRYPTION_KEY = ""
         GMAIL_CLIENT_ID = ""
         GMAIL_CLIENT_SECRET = ""
