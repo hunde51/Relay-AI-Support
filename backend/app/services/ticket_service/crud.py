@@ -5,8 +5,18 @@ from app.core.ws_manager import manager
 from app.services.ticket_service.webhook import _fire_webhook
 
 
-async def create_ticket(db: AsyncSession, data: TicketCreate, current_user: dict | None = None):
-    ticket = await ticket_repository.create(db, data, current_user=current_user)
+async def create_ticket(
+    db: AsyncSession,
+    data: TicketCreate,
+    current_user: dict | None = None,
+    source: str | None = None,
+    customer_id: str | None = None,
+    organization_id: str | None = None,
+):
+    ticket = await ticket_repository.create(
+        db, data, current_user=current_user, source=source, customer_id=customer_id,
+        organization_id=organization_id,
+    )
     await manager.broadcast_ticket({"event": "ticket_created", "ticket_id": ticket.id, "status": ticket.status})
     await _fire_webhook(db, ticket, "ticket.created")
     return ticket

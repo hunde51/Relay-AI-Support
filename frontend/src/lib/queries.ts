@@ -29,6 +29,7 @@ export const keys = {
   apiKeys:          ["api-keys"] as const,
   webhookEndpoints: ["webhooks", "endpoints"] as const,
   webhookDeliveries:["webhooks", "deliveries"] as const,
+  widgetKeys:       ["settings", "widget"] as const,
 };
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -290,6 +291,35 @@ export const useTestWebhookEndpoint = () => {
   return useMutation({
     mutationFn: (id: string) => api.webhooks.testEndpoint(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.webhookDeliveries }),
+  });
+};
+
+// ── Widget keys ───────────────────────────────────────────────────────────────
+export const useWidgetKeys = () =>
+  useQuery({ queryKey: keys.widgetKeys, queryFn: api.widgetKeys.list, staleTime: 30_000 });
+
+export const useCreateWidgetKey = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; allowed_origins?: string[] }) => api.widgetKeys.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.widgetKeys }),
+  });
+};
+
+export const useUpdateWidgetKey = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; allowed_origins?: string[] } }) =>
+      api.widgetKeys.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.widgetKeys }),
+  });
+};
+
+export const useRevokeWidgetKey = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.widgetKeys.revoke(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.widgetKeys }),
   });
 };
 

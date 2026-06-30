@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Key, Webhook, Plus, Trash2, RefreshCw, Copy } from "lucide-react";
+import { Key, Webhook, Plus, Trash2, RefreshCw, Copy, Globe } from "lucide-react";
 import {
   useWorkspaceSettings, useAISettings, useNotificationSettings,
   usePatchWorkspace, usePatchAISettings, usePatchNotifications,
   useApiKeys, useCreateApiKey, useRevokeApiKey, useRotateApiKey,
   useWebhookEndpoints, useCreateWebhookEndpoint, useDeleteWebhookEndpoint,
   useWebhookDeliveries, useTestWebhookEndpoint,
+  useWidgetKeys, useCreateWidgetKey, useUpdateWidgetKey, useRevokeWidgetKey,
 } from "@/lib/queries";
-import type { WorkspaceSettings, AISettings, NotificationSettings, ApiKey, WebhookEndpoint, WebhookDelivery } from "@/lib/api/client";
+import type { WorkspaceSettings, AISettings, NotificationSettings, ApiKey, WebhookEndpoint, WebhookDelivery, WidgetKey } from "@/lib/api/client";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -40,9 +41,19 @@ function Settings() {
   const deleteEp = useDeleteWebhookEndpoint();
   const testEp = useTestWebhookEndpoint();
 
+  const { data: widgetKeys = [], isLoading: widgetKeysLoading } = useWidgetKeys();
+  const createWidgetKey = useCreateWidgetKey();
+  const updateWidgetKey = useUpdateWidgetKey();
+  const revokeWidgetKey = useRevokeWidgetKey();
+
   const [newKeyName, setNewKeyName] = useState("");
   const [newEpUrl, setNewEpUrl] = useState("");
   const [newEpEvents, setNewEpEvents] = useState<string[]>(["ticket.resolved"]);
+  const [newWidgetName, setNewWidgetName] = useState("");
+  const [newWidgetOrigins, setNewWidgetOrigins] = useState("");
+  const [newWidgetKeyResult, setNewWidgetKeyResult] = useState<{ key: string; name: string } | null>(null);
+  const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
+  const [editingWidgetOrigins, setEditingWidgetOrigins] = useState("");
 
   return (
     <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 max-w-[900px] mx-auto">
@@ -115,6 +126,83 @@ function Settings() {
               <p className="px-5 py-4 text-xs text-muted-foreground">No API keys yet.</p>
             ) : apiKeys.map((k) => (
               <ApiKeyRow key={k.id} keyData={k} onRevoke={() => revokeKey.mutate(k.id)} onRotate={() => rotateKey.mutate(k.id)} />
+            ))}
+          </>
+        )}
+      </Section>
+
+      <Section title="Support Widget" icon={<Globe className="h-4 w-4" />}>
+        {widgetKeysLoading ? <SkeletonRows n={2} /> : (
+          <>
+            <div className="flex flex-col gap-2 px-5 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <input value={newWidgetName} onChange={(e) => setNewWidgetName(e.target.value)}
+                  placeholder="Widget name…"
+                  className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-primary"
+                />
+                <button onClick={() => {
+                  if (newWidgetName.trim()) {
+                    createWidgetKey.mutate({
+                      name: newWidgetName.trim(),
+                      allowed_origins: newWidgetOrigins.split("\n").map((s) => s.trim()).filter(Boolean),
+                    }, {
+                      onSuccess: (data) => {
+                        setNewWidgetKeyResult({ key: (data as { key: string }).key, name: data.name });
+                        setNewWidgetName("");
+                        setNewWidgetOrigins("");
+                      },
+                    });
+                  }
+                }}
+                  disabled={createWidgetKey.isPending || !newWidgetName.trim()}
+                  className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50 shrink-0"
+                >
+                  <Plus className="h-3 w-3" /> Create
+                </button>
+              </div>
+              <textarea value={newWidgetOrigins} onChange={(e) => setNewWidgetOrigins(e.target.value)}
+                placeholder="Allowed origins (one per line, leave empty for all origins)"
+                className="w-full rounded border border-border bg-background px-3 py-1.5 text-xs outline-none focus:border-primary resize-none"
+                rows={2}
+              />
+            </div>
+
+            {newWidgetKeyResult && (
+              <div className="px-5 py-3 bg-primary/5 border-b border-border">
+                <p className="text-xs font-semibold text-primary mb-1">Widget key created — copy it now, it won't be shown again!</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs font-mono bg-background rounded px-2 py-1 break-all">{newWidgetKeyResult.key}</code>
+                  <button onClick={() => {
+                    navigator.clipboard.writeText(newWidgetKeyResult.key).then(() => {
+                      setNewWidgetKeyResult(null);
+                    });
+                  }} className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent shrink-0">
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                  <button onClick={() => setNewWidgetKeyResult(null)} className="text-xs text-muted-foreground hover:underline shrink-0">
+                    Dismiss
+                  </button>
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  <p>Embed code:</p>
+                  <code className="block bg-background rounded px-2 py-1 mt-1 font-mono text-xs break-all">
+                    {`<script src="${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"}/widget.js" data-key="${newWidgetKeyResult.key}" data-color="#6366f1" data-title="Support"></script>`}
+                  </code>
+                </div>
+              </div>
+            )}
+
+            {widgetKeys.length === 0 ? (
+              <p className="px-5 py-4 text-xs text-muted-foreground">No widget keys yet.</p>
+            ) : widgetKeys.map((k) => (
+              <WidgetKeyRow key={k.id} keyData={k}
+                onRevoke={() => revokeWidgetKey.mutate(k.id)}
+                onUpdate={(data) => updateWidgetKey.mutate({ id: k.id, data })}
+                editingWidgetId={editingWidgetId}
+                setEditingWidgetId={setEditingWidgetId}
+                editingWidgetOrigins={editingWidgetOrigins}
+                setEditingWidgetOrigins={setEditingWidgetOrigins}
+              />
             ))}
           </>
         )}
@@ -251,6 +339,62 @@ function DeliveryRow({ delivery }: { delivery: WebhookDelivery }) {
         <span className={statusColor}>{delivery.status}</span>
         <span>{delivery.attempts} attempt{delivery.attempts !== 1 ? "s" : ""}</span>
       </div>
+    </div>
+  );
+}
+
+function WidgetKeyRow({ keyData, onRevoke, onUpdate, editingWidgetId, setEditingWidgetId, editingWidgetOrigins, setEditingWidgetOrigins }: {
+  keyData: WidgetKey;
+  onRevoke: () => void;
+  onUpdate: (data: { name?: string; allowed_origins?: string[] }) => void;
+  editingWidgetId: string | null;
+  setEditingWidgetId: (v: string | null) => void;
+  editingWidgetOrigins: string;
+  setEditingWidgetOrigins: (v: string) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const isEditing = editingWidgetId === keyData.id;
+
+  return (
+    <div className="px-5 py-3 text-sm">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <div className="font-medium">{keyData.name}</div>
+          <div className="text-xs text-muted-foreground font-mono">
+            {keyData.key_prefix}…{keyData.is_active ? "active" : "revoked"}
+            {keyData.last_used_at ? ` · last used ${new Date(keyData.last_used_at).toLocaleDateString()}` : " · never used"}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => {
+            setEditingWidgetId(isEditing ? null : keyData.id);
+            setEditingWidgetOrigins((keyData.allowed_origins ?? []).join("\n"));
+          }} title="Edit origins"
+            className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent">
+            <Globe className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={onRevoke} title="Revoke key"
+            className="rounded p-1 text-destructive/70 hover:text-destructive hover:bg-destructive/10">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      {isEditing && (
+        <div className="mt-2 flex flex-col gap-2">
+          <textarea value={editingWidgetOrigins} onChange={(e) => setEditingWidgetOrigins(e.target.value)}
+            placeholder="Allowed origins (one per line)"
+            className="w-full rounded border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary resize-none"
+            rows={2}
+          />
+          <div className="flex items-center gap-2">
+            <button onClick={() => {
+              onUpdate({ allowed_origins: editingWidgetOrigins.split("\n").map((s) => s.trim()).filter(Boolean) });
+              setEditingWidgetId(null);
+            }} className="text-xs text-primary hover:underline">Save</button>
+            <button onClick={() => setEditingWidgetId(null)} className="text-xs text-muted-foreground hover:underline">Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
