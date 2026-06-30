@@ -39,6 +39,7 @@ from app.models.ai import (  # noqa: F401
     AIToolDefinitionORM,
 )
 from app.models.api_key import ApiKeyORM  # noqa: F401
+from app.models.widget import WidgetKeyORM  # noqa: F401
 from app.models.audit import AuditLogORM, NotificationORM  # noqa: F401
 from app.models.webhook import WebhookEndpointORM, WebhookDeliveryORM  # noqa: F401
 from app.models.email import EmailIntegrationORM, EmailMessageORM  # noqa: F401

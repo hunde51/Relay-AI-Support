@@ -33,6 +33,7 @@ from app.models import (  # noqa: F401
     AIResponseORM,
     AIToolDefinitionORM,
     ApiKeyORM,
+    WidgetKeyORM,
     AuditLogORM,
     NotificationORM,
     WebhookEndpointORM,

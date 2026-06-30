@@ -7,6 +7,7 @@ class ConnectionManager:
         self._ticket_clients: list[WebSocket] = []
         self._ai_clients: dict[str, list[WebSocket]] = {}  # ticket_id → clients
         self._notification_clients: list[WebSocket] = []
+        self._widget_clients: dict[str, list[WebSocket]] = {}  # ticket_id → widget visitor clients
 
     async def connect_tickets(self, ws: WebSocket):
         await ws.accept()
@@ -22,6 +23,16 @@ class ConnectionManager:
     def disconnect_ai(self, ws: WebSocket, ticket_id: str):
         if ticket_id in self._ai_clients:
             self._ai_clients[ticket_id].remove(ws)
+
+    async def connect_widget(self, ws: WebSocket, ticket_id: str):
+        await ws.accept()
+        self._widget_clients.setdefault(ticket_id, []).append(ws)
+
+    def disconnect_widget(self, ws: WebSocket, ticket_id: str):
+        if ticket_id in self._widget_clients:
+            clients = self._widget_clients[ticket_id]
+            if ws in clients:
+                clients.remove(ws)
 
     async def connect_notifications(self, ws: WebSocket):
         await ws.accept()
@@ -42,11 +53,20 @@ class ConnectionManager:
     async def stream_ai_step(self, ticket_id: str, step: dict):
         for ws in list(self._ai_clients.get(ticket_id, [])):
             await ws.send_text(json.dumps(step))
+        for ws in list(self._widget_clients.get(ticket_id, [])):
+            await ws.send_text(json.dumps(step))
 
     async def stream_tool_call(self, ticket_id: str, call: dict):
         """Stream tool call events to AI clients for a ticket."""
         for ws in list(self._ai_clients.get(ticket_id, [])):
             await ws.send_text(json.dumps({"tool_call": call}))
+        for ws in list(self._widget_clients.get(ticket_id, [])):
+            await ws.send_text(json.dumps({"tool_call": call}))
+
+    async def stream_widget_event(self, ticket_id: str, event: dict):
+        """Stream an event to widget clients for a ticket."""
+        for ws in list(self._widget_clients.get(ticket_id, [])):
+            await ws.send_text(json.dumps(event))
 
 
 manager = ConnectionManager()

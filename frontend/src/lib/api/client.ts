@@ -202,6 +202,18 @@ export type WebhookDelivery = {
   created_at: string;
 };
 
+export type WidgetKey = {
+  id: string;
+  name: string;
+  key_prefix: string;
+  allowed_origins: string[] | null;
+  is_active: boolean;
+  last_used_at: string | null;
+  created_at: string;
+};
+
+export type WidgetKeyWithSecret = WidgetKey & { key: string };
+
 export const api = {
   tickets: {
     list: (params?: {
@@ -399,6 +411,24 @@ export const api = {
       request<WebhookDelivery[]>(`${BASE}/webhooks/deliveries`),
     testEndpoint: (id: string): Promise<{ delivery_id: string; status: string }> =>
       request<{ delivery_id: string; status: string }>(`${BASE}/webhooks/endpoints/${id}/test`, { method: "POST" }),
+  },
+
+  widgetKeys: {
+    list: (): Promise<WidgetKey[]> => request<WidgetKey[]>(`${BASE}/settings/widget`),
+    create: (data: { name: string; allowed_origins?: string[] }): Promise<WidgetKeyWithSecret> =>
+      request<WidgetKeyWithSecret>(`${BASE}/settings/widget`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: { name?: string; allowed_origins?: string[] }): Promise<WidgetKey> =>
+      request<WidgetKey>(`${BASE}/settings/widget/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+    revoke: (id: string): Promise<void> =>
+      request<void>(`${BASE}/settings/widget/${id}`, { method: "DELETE" }),
   },
 
   // Legacy — kept for backward compat with agent.py route

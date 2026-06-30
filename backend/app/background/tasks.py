@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.background.celery_app import celery_app
 from app.db.database import SessionLocal
-from app.db.models import AIRunORM, KnowledgeDocumentORM, KnowledgeIngestionJobORM, KnowledgeSourceORM
+from app.db.models import AIRunORM, EmailIntegrationORM, KnowledgeDocumentORM, KnowledgeIngestionJobORM, KnowledgeSourceORM
 from app.services.ai_service import process_ai_run
 from app.services import rag_service
 
@@ -116,3 +116,69 @@ def process_ai_run_task(self, ai_run_id: str):
 )
 def process_document_ingestion_task(self, job_id: str):
     return asyncio.run(_process_document_ingestion_async(job_id))
+
+
+async def _poll_all_gmail_async() -> dict:
+    async with SessionLocal() as db:
+        result = await db.execute(
+            select(EmailIntegrationORM).where(
+                EmailIntegrationORM.provider == "gmail",
+                EmailIntegrationORM.is_active == True,
+            )
+        )
+        integrations = result.scalars().all()
+        from app.services.email_service import poll_gmail
+        total = 0
+        for integration in integrations:
+            try:
+                cnt = await poll_gmail(db, integration)
+                total += cnt
+            except Exception as exc:
+                integration.last_error = str(exc)
+                await db.commit()
+        return {"polled": len(integrations), "new_messages": total}
+
+
+async def _poll_all_outlook_async() -> dict:
+    async with SessionLocal() as db:
+        result = await db.execute(
+            select(EmailIntegrationORM).where(
+                EmailIntegrationORM.provider == "outlook",
+                EmailIntegrationORM.is_active == True,
+            )
+        )
+        integrations = result.scalars().all()
+        from app.services.email_service import poll_outlook
+        total = 0
+        for integration in integrations:
+            try:
+                cnt = await poll_outlook(db, integration)
+                total += cnt
+            except Exception as exc:
+                integration.last_error = str(exc)
+                await db.commit()
+        return {"polled": len(integrations), "new_messages": total}
+
+
+@celery_app.task(
+    name="app.background.tasks.poll_gmail",
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=2,
+)
+def poll_gmail_task(self):
+    return asyncio.run(_poll_all_gmail_async())
+
+
+@celery_app.task(
+    name="app.background.tasks.poll_outlook",
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=2,
+)
+def poll_outlook_task(self):
+    return asyncio.run(_poll_all_outlook_async())
