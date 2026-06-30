@@ -20,6 +20,7 @@ from app.api.webhooks import router as webhooks_router
 from app.api.websockets import router as ws_router
 from app.api.email_integration import router as email_router
 from app.api.widget import router as widget_router
+from app.api.invitations import router as invitations_router
 from app.core.middleware import AuthMiddleware, StructuredLogMiddleware, RateLimitMiddleware
 from app.core.metrics import request_duration
 import time
@@ -69,6 +70,7 @@ app.include_router(external_router)
 app.include_router(webhooks_router)
 app.include_router(email_router)
 app.include_router(widget_router)
+app.include_router(invitations_router)
 
 _WIDGET_JS = (Path(__file__).resolve().parent / "widget_script" / "widget.js").read_text()
 
