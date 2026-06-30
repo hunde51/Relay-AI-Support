@@ -14,15 +14,23 @@ def _utc_now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-async def create(db: AsyncSession, data: TicketCreate, current_user: dict | None = None) -> TicketORM:
+async def create(
+    db: AsyncSession,
+    data: TicketCreate,
+    current_user: dict | None = None,
+    source: str | None = None,
+    customer_id: str | None = None,
+    organization_id: str | None = None,
+) -> TicketORM:
     ticket = TicketORM(
         id=f"TKT-{uuid4().hex[:6].upper()}",
-        organization_id=resolve_org_id(current_user),
+        organization_id=organization_id or resolve_org_id(current_user),
         title=data.title,
         message=data.message,
         priority=data.priority,
         category=data.category,
-        source=current_user.get("source", "manual") if current_user else "manual",
+        source=source or (current_user.get("source", "manual") if current_user else "manual"),
+        customer_id=customer_id,
         created_at=_utc_now(),
         updated_at=_utc_now(),
     )

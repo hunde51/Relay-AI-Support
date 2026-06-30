@@ -1,5 +1,9 @@
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+
+from fastapi.responses import HTMLResponse
+
 from app.api.agent import router as agent_router
 from app.api.ai import router as ai_router
 from app.api.analytics import router as analytics_router
@@ -15,6 +19,7 @@ from app.api.tickets import router as tickets_router
 from app.api.webhooks import router as webhooks_router
 from app.api.websockets import router as ws_router
 from app.api.email_integration import router as email_router
+from app.api.widget import router as widget_router
 from app.core.middleware import AuthMiddleware, StructuredLogMiddleware, RateLimitMiddleware
 from app.core.metrics import request_duration
 import time
@@ -63,6 +68,14 @@ app.include_router(api_keys_router)
 app.include_router(external_router)
 app.include_router(webhooks_router)
 app.include_router(email_router)
+app.include_router(widget_router)
+
+_WIDGET_JS = (Path(__file__).resolve().parent / "widget_script" / "widget.js").read_text()
+
+
+@app.get("/widget.js", response_class=HTMLResponse, include_in_schema=False)
+async def serve_widget_js():
+    return HTMLResponse(_WIDGET_JS, media_type="application/javascript")
 
 
 @app.get("/health")

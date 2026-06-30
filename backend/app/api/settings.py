@@ -5,9 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
 from app.db.database import get_db
-from app.db.models import OrganizationORM, OrganizationSettingsORM, NotificationSettingsORM, IntegrationORM
-from app.api.auth import optional_current_user
+from app.db.models import OrganizationORM, OrganizationSettingsORM, NotificationSettingsORM, IntegrationORM, WidgetKeyORM
+from app.api.auth import optional_current_user, get_current_user
 from app.core.tenant import resolve_org_id, assert_org_access
+from app.services import widget_key_service
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -129,6 +130,119 @@ async def patch_integration(
     await db.commit()
     await db.refresh(integration)
     return {"id": integration.id, "provider": integration.provider, "status": integration.status, "config": integration.config}
+
+
+# ── Widget settings ───────────────────────────────────────────────────────────
+
+class WidgetKeyCreate(BaseModel):
+    name: str
+    allowed_origins: list[str] | None = None
+
+
+class WidgetKeyUpdate(BaseModel):
+    name: str | None = None
+    allowed_origins: list[str] | None = None
+
+
+class WidgetKeyResponse(BaseModel):
+    id: str
+    name: str
+    key_prefix: str
+    allowed_origins: list[str] | None
+    is_active: bool
+    last_used_at: str | None = None
+    created_at: str
+    key: str | None = None  # shown once on creation
+
+
+@router.get("/widget")
+async def list_widget_keys(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    _require_admin_or_manager(current_user)
+    org_id = current_user["organization_id"]
+    keys = await widget_key_service.list_widget_keys(db, org_id)
+    return [
+        WidgetKeyResponse(
+            id=k.id,
+            name=k.name,
+            key_prefix=k.key_prefix,
+            allowed_origins=k.allowed_origins,
+            is_active=k.is_active,
+            last_used_at=k.last_used_at.isoformat() if k.last_used_at else None,
+            created_at=k.created_at.isoformat(),
+        )
+        for k in keys
+    ]
+
+
+@router.post("/widget", status_code=201)
+async def create_widget_key(
+    data: WidgetKeyCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    _require_admin_or_manager(current_user)
+    org_id = current_user["organization_id"]
+    key, full_key = await widget_key_service.create_widget_key(
+        db, org_id, data.name, allowed_origins=data.allowed_origins
+    )
+    return WidgetKeyResponse(
+        id=key.id,
+        name=key.name,
+        key_prefix=key.key_prefix,
+        allowed_origins=key.allowed_origins,
+        is_active=key.is_active,
+        created_at=key.created_at.isoformat(),
+        key=full_key,
+    )
+
+
+@router.patch("/widget/{key_id}")
+async def update_widget_key_endpoint(
+    key_id: str,
+    data: WidgetKeyUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    _require_admin_or_manager(current_user)
+    org_id = current_user["organization_id"]
+    key = await widget_key_service.update_widget_key(
+        db, key_id, org_id,
+        name=data.name,
+        allowed_origins=data.allowed_origins,
+    )
+    if not key:
+        raise HTTPException(status_code=404, detail="Widget key not found")
+    return WidgetKeyResponse(
+        id=key.id,
+        name=key.name,
+        key_prefix=key.key_prefix,
+        allowed_origins=key.allowed_origins,
+        is_active=key.is_active,
+        last_used_at=key.last_used_at.isoformat() if key.last_used_at else None,
+        created_at=key.created_at.isoformat(),
+    )
+
+
+@router.delete("/widget/{key_id}", status_code=204)
+async def revoke_widget_key_endpoint(
+    key_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="admin role required")
+    org_id = current_user["organization_id"]
+    ok = await widget_key_service.revoke_widget_key(db, key_id, org_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Widget key not found")
+
+
+def _require_admin_or_manager(user: dict):
+    if user.get("role") not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="admin or manager role required")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
