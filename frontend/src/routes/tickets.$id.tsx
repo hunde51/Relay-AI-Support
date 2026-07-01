@@ -104,24 +104,24 @@ function TicketDetail() {
   };
 
   return (
-    <div className="px-4 md:px-8 py-6 md:py-8 max-w-[1600px] mx-auto">
-      <Link to="/tickets" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4">
+    <div className="px-3 md:px-8 py-4 md:py-8 max-w-[1600px] mx-auto">
+      <Link to="/tickets" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-3 md:mb-4">
         <ArrowLeft className="h-3.5 w-3.5" /> Back to tickets
       </Link>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
+      <div className="flex flex-col lg:grid lg:grid-cols-[1fr_380px] gap-4 md:gap-6">
         {/* Main panel */}
         <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.3 }} className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="border-b border-border p-5">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="border-b border-border p-4 md:p-5">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
               <span className="font-mono">{currentTicket.id}</span>
               <span>·</span>
               <CategoryBadge category={currentTicket.category} />
               <PriorityBadge priority={currentTicket.priority} />
               <span className="ml-auto"><StatusBadge status={currentTicket.status} /></span>
             </div>
-            <h1 className="mt-2 text-xl font-semibold tracking-tight">{currentTicket.title}</h1>
+            <h1 className="mt-2 text-lg md:text-xl font-semibold tracking-tight">{currentTicket.title}</h1>
             <div className="mt-1 text-sm text-muted-foreground">{currentTicket.message}</div>
           </div>
 
@@ -197,12 +197,12 @@ function TicketDetail() {
           )}
         </motion.div>
 
-        {/* Sidebar */}
+        {/* Sidebar — stacks below main panel on mobile */}
         <motion.aside initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }} className="space-y-4">
+          transition={{ duration: 0.3 }} className="space-y-3 md:space-y-4">
 
           {/* Action buttons */}
-          <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+          <div className="rounded-xl border border-border bg-card p-4 md:p-5 space-y-3">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
               <Sparkles className="h-3.5 w-3.5" /> Actions
             </div>
@@ -230,19 +230,19 @@ function TicketDetail() {
           </div>
 
           {/* Assign */}
-          <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+          <div className="rounded-xl border border-border bg-card p-4 md:p-5 space-y-3">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               <UserPlus className="h-3.5 w-3.5" /> Assignment
             </div>
             <div className="flex items-center gap-2">
               <input value={assignId} onChange={(e) => setAssignId(e.target.value)}
                 placeholder="User ID to assign…"
-                className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary/40"
+                className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary/40 min-w-0"
                 onKeyDown={(e) => { if (e.key === "Enter" && assignId.trim()) { assign.mutate(assignId.trim()); setAssignId(""); } }}
               />
               <button onClick={() => { if (assignId.trim()) { assign.mutate(assignId.trim()); setAssignId(""); } }}
                 disabled={assign.isPending || !assignId.trim()}
-                className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50">
+                className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50 shrink-0">
                 Assign
               </button>
             </div>
@@ -326,7 +326,7 @@ function TicketDetail() {
 
           {/* Customer info */}
           {customerData && (
-            <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+            <div className="rounded-xl border border-border bg-card p-4 md:p-5 space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <UserRound className="h-3.5 w-3.5" /> Customer
               </div>
@@ -341,7 +341,7 @@ function TicketDetail() {
           )}
 
           {/* Metadata */}
-          <div className="rounded-xl border border-border bg-card p-5 text-xs space-y-2">
+          <div className="rounded-xl border border-border bg-card p-4 md:p-5 text-xs space-y-2">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Metadata</div>
             <Row k="Created" v={new Date(currentTicket.created_at).toLocaleString()} />
             <Row k="Updated" v={new Date(currentTicket.updated_at).toLocaleString()} />

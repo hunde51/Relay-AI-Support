@@ -4,6 +4,7 @@ from app.repositories import ticket_repository
 from app.core.ws_manager import manager
 from app.services.ticket_service.webhook import _fire_webhook
 from app.services.usage_service import increment_tickets_created
+from app.services.billing_service import check_ticket_limit
 
 
 async def create_ticket(
@@ -14,13 +15,18 @@ async def create_ticket(
     customer_id: str | None = None,
     organization_id: str | None = None,
 ):
+    org_id = organization_id or (
+        current_user.get("organization_id") if current_user else None
+    )
+    if org_id:
+        await check_ticket_limit(db, org_id)
+
     ticket = await ticket_repository.create(
         db, data, current_user=current_user, source=source, customer_id=customer_id,
-        organization_id=organization_id,
+        organization_id=org_id,
     )
     await manager.broadcast_ticket({"event": "ticket_created", "ticket_id": ticket.id, "status": ticket.status})
     await _fire_webhook(db, ticket, "ticket.created")
-    org_id = organization_id or getattr(ticket, "organization_id", None)
     if org_id:
         await increment_tickets_created(db, org_id)
     return ticket

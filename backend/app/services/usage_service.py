@@ -271,49 +271,7 @@ async def get_ai_costs_breakdown(db: AsyncSession, organization_id: str, months:
 async def get_usage_limits(db: AsyncSession, organization_id: str, period: str | None = None) -> dict:
     """Return current usage vs plan/configured limits.
 
-    Limits are read from organization_settings or plan defaults.
-    In Phase 11 no hard enforcement occurs — this is read-only reporting.
+    Delegates to billing_service for the canonical limits calculation.
     """
-    period = period or get_current_period()
-    record = await get_or_create_record(db, organization_id, period)
-
-    from app.models.org import OrganizationORM, OrganizationSettingsORM
-
-    org_result = await db.execute(select(OrganizationORM).where(OrganizationORM.id == organization_id))
-    org = org_result.scalar_one_or_none()
-    plan = org.plan if org else "starter"
-
-    settings_result = await db.execute(
-        select(OrganizationSettingsORM).where(OrganizationSettingsORM.organization_id == organization_id)
-    )
-    settings = settings_result.scalar_one_or_none()
-
-    # Plan-based default limits
-    PLAN_LIMITS = {
-        "starter": {"monthly_tickets": 500, "monthly_ai_runs": 500, "monthly_api_requests": 10000},
-        "pro": {"monthly_tickets": 5000, "monthly_ai_runs": 5000, "monthly_api_requests": 100000},
-        "enterprise": {"monthly_tickets": 50000, "monthly_ai_runs": 50000, "monthly_api_requests": 1000000},
-    }
-    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["starter"])
-
-    # Allow org settings to override plan defaults
-    if settings and settings.settings:
-        limits.update(settings.settings.get("usage_limits", {}))
-
-    usage = {
-        "tickets_created": record.tickets_created,
-        "ai_runs_executed": record.ai_runs_executed,
-        "api_requests": record.api_requests,
-    }
-
-    return {
-        "period": period,
-        "plan": plan,
-        "usage": usage,
-        "limits": limits,
-        "remaining": {
-            "tickets": max(0, limits["monthly_tickets"] - record.tickets_created),
-            "ai_runs": max(0, limits["monthly_ai_runs"] - record.ai_runs_executed),
-            "api_requests": max(0, limits["monthly_api_requests"] - record.api_requests),
-        },
-    }
+    from app.services.billing_service import get_usage_vs_limits
+    return await get_usage_vs_limits(db, organization_id, period=period)
