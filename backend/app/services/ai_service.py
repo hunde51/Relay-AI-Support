@@ -90,6 +90,7 @@ async def process_ai_run(db: AsyncSession, ai_run_id: str) -> dict:
     await db.commit()
 
     from app.core.metrics import ai_runs_total, ai_runs_active
+    from app.services.usage_service import increment_ai_runs as _increment_ai_runs
     ai_runs_active.inc()
 
     initial_state = _build_initial_state(ticket, ai_run)
@@ -100,6 +101,16 @@ async def process_ai_run(db: AsyncSession, ai_run_id: str) -> dict:
         # persist_ai_run node already committed; refresh to get final state
         await db.refresh(ai_run)
         ai_runs_total.labels(status="success").inc()
+        org_id = ai_run.organization_id or ticket.organization_id
+        if org_id:
+            await _increment_ai_runs(
+                db,
+                organization_id=org_id,
+                prompt_tokens=ai_run.prompt_tokens or 0,
+                completion_tokens=ai_run.completion_tokens or 0,
+                model=ai_run.model_name or "gemini-1.5-flash",
+                resource_id=ai_run.id,
+            )
     except Exception as e:
         ai_run.status = "failed"
         ai_run.error = str(e)
@@ -130,6 +141,7 @@ async def run_ai_on_ticket(db: AsyncSession, ticket_id: str) -> dict:
         organization_id=ticket.organization_id,
         status="queued" if settings.REDIS_URL else "running",
         started_at=_utc_now() if not settings.REDIS_URL else None,
+        model_name="gemini-1.5-flash",
     )
     db.add(ai_run)
     await db.commit()

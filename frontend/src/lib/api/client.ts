@@ -487,6 +487,21 @@ export const api = {
     members: (): Promise<TeamMember[]> => request<TeamMember[]>(`${BASE}/invitations/members`),
   },
 
+  usage: {
+    summary: (period?: string): Promise<{ period: string; tickets_created: number; ai_runs_executed: number; llm_prompt_tokens: number; llm_completion_tokens: number; llm_total_tokens: number; llm_cost_usd: number; api_requests: number; knowledge_chunks: number; active_users: number }> => {
+      const q = period ? `?period=${encodeURIComponent(period)}` : "";
+      return request(`${BASE}/usage/summary${q}`);
+    },
+    history: (months = 12): Promise<{ period: string; tickets_created: number; ai_runs_executed: number; llm_prompt_tokens: number; llm_completion_tokens: number; llm_total_tokens: number; llm_cost_usd: number; api_requests: number }[]> =>
+      request(`${BASE}/usage/history?months=${months}`),
+    aiCosts: (months = 6): Promise<{ period: string; model: string; runs: number; prompt_tokens: number; completion_tokens: number; cost_usd: number }[]> =>
+      request(`${BASE}/usage/ai-costs?months=${months}`),
+    limits: (period?: string): Promise<{ period: string; plan: string; usage: Record<string, number>; limits: Record<string, number>; remaining: Record<string, number> }> => {
+      const q = period ? `?period=${encodeURIComponent(period)}` : "";
+      return request(`${BASE}/usage/limits${q}`);
+    },
+  },
+
   // Legacy — kept for backward compat with agent.py route
   agent: {
     process: (ticketId: string) =>

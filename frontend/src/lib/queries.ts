@@ -32,6 +32,10 @@ export const keys = {
   widgetKeys:       ["settings", "widget"] as const,
   invitations:      ["invitations"] as const,
   members:          ["invitations", "members"] as const,
+  usageSummary:     ["usage", "summary"] as const,
+  usageHistory:     ["usage", "history"] as const,
+  usageAICosts:     ["usage", "ai-costs"] as const,
+  usageLimits:      ["usage", "limits"] as const,
 };
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -363,6 +367,35 @@ export const useValidateInvite = (token: string) =>
 export const useAcceptInvitation = () =>
   useMutation({
     mutationFn: (data: { token: string; name: string; password: string }) => api.invitations.accept(data),
+  });
+
+// ── Usage ──────────────────────────────────────────────────────────────────
+export const useUsageSummary = (period?: string) =>
+  useQuery({
+    queryKey: [...keys.usageSummary, period ?? ""] as const,
+    queryFn: () => api.usage.summary(period),
+    staleTime: 60_000,
+  });
+
+export const useUsageHistory = (months = 12) =>
+  useQuery({
+    queryKey: [...keys.usageHistory, months] as const,
+    queryFn: () => api.usage.history(months),
+    staleTime: 120_000,
+  });
+
+export const useUsageAICosts = (months = 6) =>
+  useQuery({
+    queryKey: [...keys.usageAICosts, months] as const,
+    queryFn: () => api.usage.aiCosts(months),
+    staleTime: 120_000,
+  });
+
+export const useUsageLimits = (period?: string) =>
+  useQuery({
+    queryKey: [...keys.usageLimits, period ?? ""] as const,
+    queryFn: () => api.usage.limits(period),
+    staleTime: 60_000,
   });
 
 export const usePatchNotifications = () => {

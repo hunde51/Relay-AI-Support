@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Key, Webhook, Plus, Trash2, RefreshCw, Copy, Globe, Users, Send, Ban } from "lucide-react";
+import { Key, Webhook, Plus, Trash2, RefreshCw, Copy, Globe, Users, Send, Ban, Activity, DollarSign, Cpu } from "lucide-react";
 import {
   useWorkspaceSettings, useAISettings, useNotificationSettings,
   usePatchWorkspace, usePatchAISettings, usePatchNotifications,
@@ -9,6 +9,7 @@ import {
   useWebhookDeliveries, useTestWebhookEndpoint,
   useWidgetKeys, useCreateWidgetKey, useUpdateWidgetKey, useRevokeWidgetKey,
   useInvitations, useCreateInvitation, useRevokeInvitation, useTeamMembers,
+  useUsageSummary, useUsageHistory, useUsageLimits,
 } from "@/lib/queries";
 import type { WorkspaceSettings, AISettings, NotificationSettings, ApiKey, WebhookEndpoint, WebhookDelivery, WidgetKey, Invitation, TeamMember } from "@/lib/api/client";
 
@@ -50,6 +51,10 @@ function Settings() {
   const [newKeyName, setNewKeyName] = useState("");
   const [newEpUrl, setNewEpUrl] = useState("");
   const [newEpEvents, setNewEpEvents] = useState<string[]>(["ticket.resolved"]);
+  const { data: usageSummary, isLoading: usageSummaryLoading } = useUsageSummary();
+  const { data: usageHistory = [] } = useUsageHistory(6);
+  const { data: usageLimits } = useUsageLimits();
+
   const [newWidgetName, setNewWidgetName] = useState("");
   const [newWidgetOrigins, setNewWidgetOrigins] = useState("");
   const [newWidgetKeyResult, setNewWidgetKeyResult] = useState<{ key: string; name: string } | null>(null);
@@ -149,6 +154,71 @@ function Settings() {
             ) : apiKeys.map((k) => (
               <ApiKeyRow key={k.id} keyData={k} onRevoke={() => revokeKey.mutate(k.id)} onRotate={() => rotateKey.mutate(k.id)} />
             ))}
+          </>
+        )}
+      </Section>
+
+      <Section title="Usage & Limits" icon={<Activity className="h-4 w-4" />}>
+        {usageSummaryLoading || !usageSummary ? <SkeletonRows n={4} /> : (
+          <>
+            <div className="px-5 py-3 text-sm space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Period</span>
+                <span className="font-mono text-xs">{usageSummary.period}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Tickets created</span>
+                <span className="font-mono">{usageSummary.tickets_created}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">AI runs executed</span>
+                <span className="font-mono">{usageSummary.ai_runs_executed}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">API requests</span>
+                <span className="font-mono">{usageSummary.api_requests}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">LLM tokens used</span>
+                <span className="font-mono">{usageSummary.llm_total_tokens.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">AI cost (USD)</span>
+                <span className="font-mono">${usageSummary.llm_cost_usd.toFixed(4)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Knowledge chunks</span>
+                <span className="font-mono">{usageSummary.knowledge_chunks}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Active users</span>
+                <span className="font-mono">{usageSummary.active_users}</span>
+              </div>
+            </div>
+            {usageLimits && (
+              <div className="border-t border-border px-5 py-3 text-sm space-y-2">
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Limits ({usageLimits.plan} plan)</div>
+                {Object.entries(usageLimits.remaining).map(([key, remaining]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{key.replace(/_/g, " ")}</span>
+                    <span className={`font-mono ${remaining < 10 ? "text-destructive" : ""}`}>
+                      {remaining} / {usageLimits.limits[`monthly_${key}`] ?? "∞"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {usageHistory.length > 0 && (
+              <div className="border-t border-border px-5 py-3 text-sm">
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Monthly history</div>
+                {usageHistory.map((h) => (
+                  <div key={h.period} className="flex items-center justify-between py-1 text-xs">
+                    <span className="font-mono text-muted-foreground">{h.period}</span>
+                    <span className="text-muted-foreground">{h.tickets_created} tickets · ${h.llm_cost_usd.toFixed(2)} AI cost</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </Section>

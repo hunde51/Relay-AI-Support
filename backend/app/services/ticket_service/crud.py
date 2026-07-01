@@ -3,6 +3,7 @@ from app.schemas.ticket import TicketCreate, TicketFilters, TicketUpdate
 from app.repositories import ticket_repository
 from app.core.ws_manager import manager
 from app.services.ticket_service.webhook import _fire_webhook
+from app.services.usage_service import increment_tickets_created
 
 
 async def create_ticket(
@@ -19,6 +20,9 @@ async def create_ticket(
     )
     await manager.broadcast_ticket({"event": "ticket_created", "ticket_id": ticket.id, "status": ticket.status})
     await _fire_webhook(db, ticket, "ticket.created")
+    org_id = organization_id or getattr(ticket, "organization_id", None)
+    if org_id:
+        await increment_tickets_created(db, org_id)
     return ticket
 
 
