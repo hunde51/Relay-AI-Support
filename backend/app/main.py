@@ -21,7 +21,8 @@ from app.api.websockets import router as ws_router
 from app.api.email_integration import router as email_router
 from app.api.widget import router as widget_router
 from app.api.invitations import router as invitations_router
-from app.core.middleware import AuthMiddleware, StructuredLogMiddleware, RateLimitMiddleware
+from app.api.usage import router as usage_router
+from app.core.middleware import AuthMiddleware, StructuredLogMiddleware, RateLimitMiddleware, UsageTrackingMiddleware
 from app.core.metrics import request_duration
 import time
 
@@ -36,6 +37,7 @@ def root():
     }
 
 app.add_middleware(AuthMiddleware)
+app.add_middleware(UsageTrackingMiddleware)
 app.add_middleware(StructuredLogMiddleware)
 app.add_middleware(RateLimitMiddleware, max_requests=200, window_seconds=60)
 
@@ -71,6 +73,7 @@ app.include_router(webhooks_router)
 app.include_router(email_router)
 app.include_router(widget_router)
 app.include_router(invitations_router)
+app.include_router(usage_router)
 
 _WIDGET_JS = (Path(__file__).resolve().parent / "widget_script" / "widget.js").read_text()
 

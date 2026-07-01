@@ -4,9 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import UTC, datetime, timedelta
 
 from app.db.database import get_db
-from app.db.models import TicketORM, TicketEventORM, AIRunORM
+from app.db.models import TicketORM, TicketEventORM, AIRunORM, UsageRecordORM
 from app.api.auth import optional_current_user
 from app.core.tenant import resolve_org_id
+from app.services.usage_service import get_current_period, get_usage_summary
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -38,6 +39,8 @@ async def get_summary(db: AsyncSession = Depends(get_db), current_user: dict | N
     auto_resolved = (await db.execute(select(func.count()).select_from(AIRunORM).where(AIRunORM.organization_id == org_id, AIRunORM.final_decision == "resolve"))).scalar_one()
     auto_resolution_rate = round(auto_resolved / completed_runs, 4) if completed_runs else 0.0
 
+    usage = await get_usage_summary(db, org_id)
+
     return {
         "total_tickets": total,
         "open_tickets": open_count,
@@ -45,6 +48,7 @@ async def get_summary(db: AsyncSession = Depends(get_db), current_user: dict | N
         "resolved_today": resolved_today,
         "avg_first_response_minutes": avg_response,
         "auto_resolution_rate": auto_resolution_rate,
+        "usage": usage,
     }
 
 
