@@ -61,13 +61,13 @@ function KB() {
   const selectedDoc = (docs as KBDoc[]).find((d) => d.id === selectedDocId) ?? null;
 
   return (
-    <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 max-w-[1200px] mx-auto">
-      <header className="flex items-center justify-between gap-4">
+    <div className="px-3 md:px-8 py-4 md:py-8 space-y-4 md:space-y-6 max-w-[1200px] mx-auto overflow-x-hidden">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Knowledge base</h1>
-          <p className="text-sm text-muted-foreground">Source of truth for AI retrieval and agent answers.</p>
+          <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Knowledge base</h1>
+          <p className="text-xs md:text-sm text-muted-foreground">Source of truth for AI retrieval and agent answers.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           <button
             onClick={() => {
               qc.invalidateQueries({ queryKey: keys.kbDocuments });
@@ -81,7 +81,7 @@ function KB() {
           </button>
           <button
             onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+            className="inline-flex items-center gap-1.5 md:gap-2 rounded-lg bg-primary px-3 py-2 text-xs md:text-sm font-medium text-primary-foreground"
           >
             <Upload className="h-4 w-4" /> Upload
           </button>
@@ -168,7 +168,7 @@ function KB() {
           <p className="text-sm">No documents yet. Upload a file to get started.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+        <div className="flex flex-col lg:grid lg:grid-cols-[1fr_360px] gap-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {(docs as KBDoc[]).map((d) => (
               <button

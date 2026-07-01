@@ -19,10 +19,10 @@ function CustomersPage() {
   const { data: customers = [], isLoading, error } = useCustomers(search || undefined);
 
   return (
-    <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 max-w-[1200px] mx-auto">
+    <div className="px-3 md:px-8 py-4 md:py-8 space-y-4 md:space-y-6 max-w-[1200px] mx-auto overflow-x-hidden">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Customers</h1>
-        <p className="text-sm text-muted-foreground">People who raise support tickets.</p>
+        <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Customers</h1>
+        <p className="text-xs md:text-sm text-muted-foreground">People who raise support tickets.</p>
       </header>
 
       <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">

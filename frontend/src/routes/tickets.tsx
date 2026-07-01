@@ -41,13 +41,13 @@ function TicketsPage() {
   };
 
   return (
-    <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 max-w-[1600px] mx-auto">
-      <header className="flex items-center justify-between gap-4">
+    <div className="px-3 md:px-8 py-4 md:py-8 space-y-4 md:space-y-6 max-w-[1600px] mx-auto overflow-x-hidden">
+      <header className="flex items-start sm:items-center justify-between gap-3 flex-col sm:flex-row">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Tickets</h1>
-          <p className="text-sm text-muted-foreground">Manage and triage incoming support requests.</p>
+          <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Tickets</h1>
+          <p className="text-xs md:text-sm text-muted-foreground">Manage and triage incoming support requests.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           <button
             onClick={refetch}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-accent"
@@ -57,7 +57,7 @@ function TicketsPage() {
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-transform active:scale-95"
+            className="inline-flex items-center gap-1.5 md:gap-2 rounded-lg bg-primary px-3 py-2 text-xs md:text-sm font-medium text-primary-foreground transition-transform active:scale-95"
           >
             <Plus className="h-4 w-4" />
             New ticket

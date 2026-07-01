@@ -374,6 +374,14 @@ export const api = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       }),
+    plan: (): Promise<{ plan: string; limits: Record<string, number | null>; usage_vs_limits: { usage: Record<string, number>; limits: Record<string, number>; remaining: Record<string, number> } }> =>
+      request(`${BASE}/settings/plan`),
+    patchPlan: (data: { plan?: string; monthly_ticket_limit?: number | null; api_rate_limit?: number | null; max_knowledge_docs?: number | null }): Promise<{ plan: string; limits: Record<string, number | null> }> =>
+      request(`${BASE}/settings/plan`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
   },
 
   ai: {

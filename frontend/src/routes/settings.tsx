@@ -10,6 +10,7 @@ import {
   useWidgetKeys, useCreateWidgetKey, useUpdateWidgetKey, useRevokeWidgetKey,
   useInvitations, useCreateInvitation, useRevokeInvitation, useTeamMembers,
   useUsageSummary, useUsageHistory, useUsageLimits,
+  usePlanSettings, usePatchPlan,
 } from "@/lib/queries";
 import type { WorkspaceSettings, AISettings, NotificationSettings, ApiKey, WebhookEndpoint, WebhookDelivery, WidgetKey, Invitation, TeamMember } from "@/lib/api/client";
 
@@ -32,6 +33,9 @@ function Settings() {
   const { data: apiKeys = [], isLoading: keysLoading } = useApiKeys();
   const { data: endpoints = [], isLoading: epsLoading } = useWebhookEndpoints();
   const { data: deliveries = [], isLoading: delLoading } = useWebhookDeliveries();
+
+  const { data: planData, isLoading: planLoading } = usePlanSettings();
+  const patchPlan = usePatchPlan();
 
   const patchWs = usePatchWorkspace();
   const patchAi = usePatchAISettings();
@@ -82,27 +86,64 @@ function Settings() {
     });
   };
 
+  const sections = [
+    { id: "workspace", label: "Workspace" },
+    { id: "ai", label: "AI Agents" },
+    { id: "notifications", label: "Notifications" },
+    { id: "api-keys", label: "API Keys" },
+    { id: "usage", label: "Usage" },
+    { id: "widget", label: "Widget" },
+    { id: "team", label: "Team" },
+    { id: "webhooks", label: "Webhooks" },
+  ];
+
+  const [activeSection, setActiveSection] = useState(sections[0].id);
+
   return (
-    <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 max-w-[900px] mx-auto">
+    <div className="px-3 md:px-8 py-4 md:py-8 space-y-4 md:space-y-6 max-w-[900px] mx-auto overflow-x-hidden">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Workspace, AI, and notification settings.</p>
+        <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Settings</h1>
+        <p className="text-xs md:text-sm text-muted-foreground">Workspace, AI, and notification settings.</p>
       </header>
 
-      <Section title="Workspace">
+      {/* Mobile section nav */}
+      <nav className="md:hidden overflow-x-auto pb-1 -mx-3 px-3 sticky top-14 z-20 bg-background/90 backdrop-blur-sm border-b border-border">
+        <div className="flex gap-1.5 py-2">
+          {sections.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => {
+                setActiveSection(s.id);
+                document.getElementById(`section-${s.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors ${
+                activeSection === s.id
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border bg-card text-muted-foreground"
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <Section id="section-workspace" title="Workspace">
         {wsLoading || !ws ? <SkeletonRows n={3} /> : (
           <>
             <EditableField label="Organization" value={ws.name} saving={patchWs.isPending}
               onSave={(v) => patchWs.mutate({ name: v })} />
-            <EditableField label="Plan" value={ws.plan} saving={patchWs.isPending}
-              onSave={(v) => patchWs.mutate({ plan: v })} />
+            <div className="flex items-center justify-between px-5 py-3 text-sm gap-4">
+              <span className="text-muted-foreground shrink-0">Plan</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-0.5 text-xs font-semibold text-primary capitalize">{ws.plan}</span>
+            </div>
             <EditableField label="Region" value={ws.region} saving={patchWs.isPending}
               onSave={(v) => patchWs.mutate({ region: v })} />
           </>
         )}
       </Section>
 
-      <Section title="AI agents">
+      <Section id="section-ai" title="AI agents">
         {aiLoading || !ai ? <SkeletonRows n={3} /> : (
           <>
             <Toggle label="AI enabled" checked={ai.ai_enabled} saving={patchAi.isPending}
@@ -115,7 +156,7 @@ function Settings() {
         )}
       </Section>
 
-      <Section title="Notifications">
+      <Section id="section-notifications" title="Notifications">
         {notifLoading || !notif ? <SkeletonRows n={3} /> : (
           <>
             <Toggle label="Email digest" checked={notif.email_digest_enabled} saving={patchNotif.isPending}
@@ -128,7 +169,7 @@ function Settings() {
         )}
       </Section>
 
-      <Section title="API Keys" icon={<Key className="h-4 w-4" />}>
+      <Section id="section-api-keys" title="API Keys" icon={<Key className="h-4 w-4" />}>
         {keysLoading ? <SkeletonRows n={2} /> : (
           <>
             <div className="flex items-center gap-2 px-5 py-3 border-b border-border">
@@ -158,7 +199,7 @@ function Settings() {
         )}
       </Section>
 
-      <Section title="Usage & Limits" icon={<Activity className="h-4 w-4" />}>
+      <Section id="section-usage" title="Usage & Limits" icon={<Activity className="h-4 w-4" />}>
         {usageSummaryLoading || !usageSummary ? <SkeletonRows n={4} /> : (
           <>
             <div className="px-5 py-3 text-sm space-y-2">
@@ -166,10 +207,35 @@ function Settings() {
                 <span className="text-muted-foreground">Period</span>
                 <span className="font-mono text-xs">{usageSummary.period}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Tickets created</span>
-                <span className="font-mono">{usageSummary.tickets_created}</span>
-              </div>
+              {(planLoading || planData) && (
+                <div className="border-t border-border pt-2 mt-2 space-y-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Plan Limits</div>
+                  {["tickets", "knowledge_docs"].map((key) => {
+                    const usageVal = planData?.usage_vs_limits?.usage?.[key === "tickets" ? "tickets_created" : "knowledge_docs"] ?? 0;
+                    const remaining = planData?.usage_vs_limits?.remaining?.[key] ?? null;
+                    const limit = planData?.usage_vs_limits?.limits?.[key === "tickets" ? "monthly_ticket_limit" : "max_knowledge_docs"] ?? null;
+                    if (limit === null) return null;
+                    const pct = Math.min(100, Math.round((usageVal / (limit as number)) * 100));
+                    const isNear = pct >= 80;
+                    const isAt = pct >= 100;
+                    return (
+                      <div key={key} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="capitalize text-muted-foreground">{key.replace(/_/g, " ")}</span>
+                          <span className={`font-mono ${isAt ? "text-destructive" : isNear ? "text-amber-500" : ""}`}>
+                            {usageVal} / {limit}
+                            {remaining !== null && <span className="text-muted-foreground ml-1">({remaining} left)</span>}
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${isAt ? "bg-destructive" : isNear ? "bg-amber-500" : "bg-primary"}`}
+                            style={{ width: `${Math.min(pct, 100)}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">AI runs executed</span>
                 <span className="font-mono">{usageSummary.ai_runs_executed}</span>
@@ -178,6 +244,14 @@ function Settings() {
                 <span className="text-muted-foreground">API requests</span>
                 <span className="font-mono">{usageSummary.api_requests}</span>
               </div>
+              {planData?.usage_vs_limits?.limits?.api_rate_limit != null && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">API rate limit</span>
+                    <span className="font-mono text-muted-foreground">{planData.usage_vs_limits.limits.api_rate_limit} req/min</span>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">LLM tokens used</span>
                 <span className="font-mono">{usageSummary.llm_total_tokens.toLocaleString()}</span>
@@ -195,19 +269,6 @@ function Settings() {
                 <span className="font-mono">{usageSummary.active_users}</span>
               </div>
             </div>
-            {usageLimits && (
-              <div className="border-t border-border px-5 py-3 text-sm space-y-2">
-                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Limits ({usageLimits.plan} plan)</div>
-                {Object.entries(usageLimits.remaining).map(([key, remaining]) => (
-                  <div key={key} className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{key.replace(/_/g, " ")}</span>
-                    <span className={`font-mono ${remaining < 10 ? "text-destructive" : ""}`}>
-                      {remaining} / {usageLimits.limits[`monthly_${key}`] ?? "∞"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
             {usageHistory.length > 0 && (
               <div className="border-t border-border px-5 py-3 text-sm">
                 <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Monthly history</div>
@@ -223,7 +284,7 @@ function Settings() {
         )}
       </Section>
 
-      <Section title="Support Widget" icon={<Globe className="h-4 w-4" />}>
+      <Section id="section-widget" title="Support Widget" icon={<Globe className="h-4 w-4" />}>
         {widgetKeysLoading ? <SkeletonRows n={2} /> : (
           <>
             <div className="flex flex-col gap-2 px-5 py-3 border-b border-border">
@@ -300,7 +361,7 @@ function Settings() {
         )}
       </Section>
 
-      <Section title="Team" icon={<Users className="h-4 w-4" />}>
+      <Section id="section-team" title="Team" icon={<Users className="h-4 w-4" />}>
         {membersLoading ? <SkeletonRows n={3} /> : (
           <>
             <div className="flex items-center justify-between px-5 py-3 border-b border-border">
@@ -368,7 +429,7 @@ function Settings() {
         </div>
       )}
 
-      <Section title="Webhooks" icon={<Webhook className="h-4 w-4" />}>
+      <Section id="section-webhooks" title="Webhooks" icon={<Webhook className="h-4 w-4" />}>
         {epsLoading ? <SkeletonRows n={2} /> : (
           <>
             <div className="flex flex-col gap-2 px-5 py-3 border-b border-border">
@@ -419,9 +480,9 @@ function Settings() {
   );
 }
 
-function Section({ title, children, icon }: { title: string; children: React.ReactNode; icon?: React.ReactNode }) {
+function Section({ id, title, children, icon }: { id?: string; title: string; children: React.ReactNode; icon?: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div id={id} className="rounded-xl border border-border bg-card overflow-hidden scroll-mt-16">
       <div className="border-b border-border px-5 py-3 text-sm font-semibold flex items-center gap-2">
         {icon}
         {title}

@@ -44,10 +44,10 @@ function Dashboard() {
     : "—";
 
   return (
-    <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 max-w-[1600px] mx-auto">
+    <div className="px-3 md:px-8 py-4 md:py-8 space-y-4 md:space-y-6 max-w-[1600px] mx-auto overflow-x-hidden">
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Support overview</h1>
-        <p className="text-sm text-muted-foreground">Real-time view of your queue and AI pipeline.</p>
+        <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Support overview</h1>
+        <p className="text-xs md:text-sm text-muted-foreground">Real-time view of your queue and AI pipeline.</p>
       </header>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -65,11 +65,12 @@ function Dashboard() {
       </section>
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.15 }} className="rounded-xl border border-border bg-card p-5">
+        transition={{ duration: 0.4, delay: 0.15 }} className="rounded-xl border border-border bg-card p-4 md:p-5">
         <div className="flex items-center gap-2 mb-3">
           <TrendingUp className="h-4 w-4 text-muted-foreground" />
           <div className="text-sm font-semibold">Ticket volume (last 14 days)</div>
         </div>
+        <div className="min-w-0">
         <ResponsiveContainer width="100%" height={140}>
           <AreaChart data={volumeItems} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
             <defs>
@@ -85,6 +86,7 @@ function Dashboard() {
             <Area type="monotone" dataKey="count" stroke="var(--chart-1)" strokeWidth={2} fill="url(#g-volume)" />
           </AreaChart>
         </ResponsiveContainer>
+        </div>
       </motion.div>
 
       <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">

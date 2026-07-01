@@ -22,10 +22,10 @@ export const Route = createFileRoute("/ai-insights")({
 
 function AIInsights() {
   return (
-    <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 max-w-[1600px] mx-auto">
+    <div className="px-3 md:px-8 py-4 md:py-8 space-y-4 md:space-y-6 max-w-[1600px] mx-auto overflow-x-hidden">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">AI insights</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-xl md:text-2xl font-semibold tracking-tight">AI insights</h1>
+        <p className="text-xs md:text-sm text-muted-foreground">
           How your support pipeline and AI agents are performing.
         </p>
       </header>
