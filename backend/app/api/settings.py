@@ -9,6 +9,7 @@ from app.db.models import OrganizationORM, OrganizationSettingsORM, Notification
 from app.api.auth import optional_current_user, get_current_user
 from app.core.tenant import resolve_org_id, assert_org_access
 from app.services import widget_key_service
+from app.services.billing_service import get_org_plan, get_org_limits, validate_plan, get_usage_vs_limits
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -23,6 +24,13 @@ class AIPatch(BaseModel):
     ai_enabled: Optional[bool] = None
     auto_resolve_enabled: Optional[bool] = None
     human_approval_threshold: Optional[str] = None
+
+
+class PlanLimitPatch(BaseModel):
+    plan: Optional[str] = None
+    monthly_ticket_limit: Optional[int] = None
+    api_rate_limit: Optional[int] = None
+    max_knowledge_docs: Optional[int] = None
 
 
 class NotificationPatch(BaseModel):
@@ -45,6 +53,57 @@ async def patch_workspace(data: WorkspacePatch, db: AsyncSession = Depends(get_d
     await db.commit()
     await db.refresh(org)
     return {"id": org.id, "name": org.name, "plan": org.plan, "region": org.region}
+
+
+@router.get("/plan")
+async def get_plan_settings(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Return the org's current plan, limits, and usage vs limits."""
+    org_id = current_user["organization_id"]
+    limits = await get_org_limits(db, org_id)
+    usage_limits = await get_usage_vs_limits(db, org_id)
+    return {
+        "plan": await get_org_plan(db, org_id),
+        "limits": limits,
+        "usage_vs_limits": usage_limits,
+    }
+
+
+@router.patch("/plan")
+async def patch_plan_settings(
+    data: PlanLimitPatch,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Update plan and/or limit fields. Admin only."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="admin role required")
+
+    org_id = current_user["organization_id"]
+
+    if data.plan is not None:
+        try:
+            validate_plan(data.plan)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        org = await _get_org(db, org_id)
+        org.plan = data.plan
+
+    settings = await _get_ai_settings(db, org_id)
+    for field in ("monthly_ticket_limit", "api_rate_limit", "max_knowledge_docs"):
+        val = getattr(data, field, None)
+        if val is not None:
+            setattr(settings, field, val)
+
+    await db.commit()
+
+    limits = await get_org_limits(db, org_id)
+    return {
+        "plan": await get_org_plan(db, org_id),
+        "limits": limits,
+    }
 
 
 @router.get("/ai")

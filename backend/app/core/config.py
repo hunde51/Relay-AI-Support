@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     OUTLOOK_CLIENT_SECRET: str = ""
     OUTLOOK_REDIRECT_URI: str = "http://localhost:8000/settings/email/outlook/callback"
 
+    # Stripe (optional)
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PRICE_TO_PLAN: str = ""  # comma-separated: price_id:plan,price_id2:plan2
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @field_validator("JWT_SECRET")
@@ -74,4 +78,6 @@ except Exception as e:
         OUTLOOK_CLIENT_ID = ""
         OUTLOOK_CLIENT_SECRET = ""
         OUTLOOK_REDIRECT_URI = ""
+        STRIPE_WEBHOOK_SECRET = ""
+        STRIPE_PRICE_TO_PLAN = ""
     settings = DummySettings() # type: ignore

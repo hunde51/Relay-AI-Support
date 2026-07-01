@@ -12,6 +12,7 @@ node_modules
 
 # Python
 venv
+.venv
 __pycache__
 *.py[cod]
 *.pyo
@@ -70,6 +71,9 @@ desktop.ini
 
 # Qdrant local vector store
 .qdrant/
+
+# FastAPI Cloud generated
+.fastapicloud/
 
 # Uploaded knowledge documents
 uploads/

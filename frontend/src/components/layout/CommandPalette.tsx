@@ -53,7 +53,7 @@ export function CommandPalette({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-start justify-center bg-background/60 backdrop-blur-sm pt-[10vh] px-4"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-background/60 backdrop-blur-sm pt-[8vh] md:pt-[10vh] px-2 md:px-4"
           onClick={() => onOpenChange(false)}
         >
           <motion.div
@@ -62,23 +62,23 @@ export function CommandPalette({
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xl overflow-hidden rounded-xl border border-border bg-popover shadow-2xl"
+            className="w-full md:max-w-xl mx-auto overflow-hidden rounded-xl border border-border bg-popover shadow-2xl md:max-h-[80vh] max-h-[90vh] flex flex-col"
           >
-            <div className="flex items-center gap-3 border-b border-border px-4 py-3">
-              <Search className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center gap-3 border-b border-border px-4 py-3 shrink-0">
+              <Search className="h-4 w-4 text-muted-foreground shrink-0" />
               <input
                 autoFocus
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search tickets, customers, IDs…"
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground min-w-0"
               />
-              <kbd className="rounded border border-border bg-muted/50 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+              <kbd className="rounded border border-border bg-muted/50 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground shrink-0">
                 Esc
               </kbd>
             </div>
 
-            <div className="max-h-80 overflow-y-auto p-2">
+            <div className="overflow-y-auto p-2 flex-1">
               {filtered.length > 0 ? (
                 <div className="mb-2">
                   <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -91,13 +91,13 @@ export function CommandPalette({
                         navigate({ to: "/tickets/$id", params: { id: t.id } });
                         onOpenChange(false);
                       }}
-                      className="group flex w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-accent"
+                      className="group flex w-full items-center justify-between gap-3 rounded-md px-2 py-2.5 text-left text-sm transition-colors hover:bg-accent"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="font-mono text-xs text-muted-foreground">{t.id}</span>
+                        <span className="font-mono text-xs text-muted-foreground shrink-0">{t.id}</span>
                         <span className="truncate">{t.title}</span>
                       </div>
-                      <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+                      <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100 shrink-0" />
                     </button>
                   ))}
                 </div>
@@ -120,13 +120,13 @@ export function CommandPalette({
                         onOpenChange(false);
                       }
                     }}
-                    className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-accent"
+                    className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-2.5 text-left text-sm transition-colors hover:bg-accent"
                   >
-                    <span className="flex items-center gap-2 text-muted-foreground">
-                      <CmdIcon className="h-3.5 w-3.5" />
-                      {s.label}
+                    <span className="flex items-center gap-2 text-muted-foreground min-w-0">
+                      <CmdIcon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{s.label}</span>
                     </span>
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1 shrink-0">
                       {s.keys.map((k) => (
                         <kbd
                           key={k}

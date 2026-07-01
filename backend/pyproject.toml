@@ -30,6 +30,10 @@ dependencies = [
     "httpx>=0.28.1",
 ]
 
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+
 [tool.fastapi]
 entrypoint = "main:app"
 
