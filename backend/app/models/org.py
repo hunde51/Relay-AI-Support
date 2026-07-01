@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, JSON, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, JSON, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, make_id
@@ -46,6 +46,9 @@ class OrganizationSettingsORM(TimestampMixin, Base):
     ai_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     auto_resolve_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     human_approval_threshold: Mapped[str] = mapped_column(String, default="0.85", nullable=False)
+    monthly_ticket_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    api_rate_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_knowledge_docs: Mapped[int | None] = mapped_column(Integer, nullable=True)
     settings: Mapped[dict | None] = mapped_column(JSON)
 
 

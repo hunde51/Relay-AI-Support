@@ -405,3 +405,22 @@ export const usePatchNotifications = () => {
     onSuccess: (data) => qc.setQueryData(keys.settingsNotifications, data),
   });
 };
+
+// ── Plan & Limits ─────────────────────────────────────────────────────────
+export const usePlanSettings = () =>
+  useQuery({
+    queryKey: ["settings", "plan"] as const,
+    queryFn: api.settings.plan,
+    staleTime: 60_000,
+  });
+
+export const usePatchPlan = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.settings.patchPlan,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["settings", "plan"] });
+      qc.invalidateQueries({ queryKey: keys.settingsWorkspace });
+    },
+  });
+};
