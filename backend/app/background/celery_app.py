@@ -30,5 +30,9 @@ celery_app.conf.update(
             "task": "app.background.tasks.poll_outlook_task",
             "schedule": 60.0,
         },
+        "archive-old-usage-every-day": {
+            "task": "app.background.tasks.archive_old_usage_records",
+            "schedule": 86400.0,  # once per day
+        },
     },
 )

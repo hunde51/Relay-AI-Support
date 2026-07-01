@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.background.celery_app import celery_app
 from app.db.database import SessionLocal
-from app.db.models import AIRunORM, EmailIntegrationORM, KnowledgeDocumentORM, KnowledgeIngestionJobORM, KnowledgeSourceORM
+from app.db.models import AIRunORM, EmailIntegrationORM, KnowledgeDocumentORM, KnowledgeIngestionJobORM, KnowledgeSourceORM, UsageRecordORM, UsageEventORM
 from app.services.ai_service import process_ai_run
 from app.services import rag_service
 
@@ -182,3 +182,33 @@ def poll_gmail_task(self):
 )
 def poll_outlook_task(self):
     return asyncio.run(_poll_all_outlook_async())
+
+
+@celery_app.task(
+    name="app.background.tasks.archive_old_usage_records",
+)
+def archive_old_usage_records():
+    """Delete usage records and events older than 24 months to control DB size."""
+    import asyncio
+    from datetime import timedelta
+    from sqlalchemy import delete
+
+    async def _run():
+        async with SessionLocal() as db:
+            cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=730)
+            cutoff_period = f"{cutoff.year}-{cutoff.month:02d}"
+
+            result = await db.execute(
+                delete(UsageRecordORM).where(UsageRecordORM.period < cutoff_period)
+            )
+            deleted_records = result.rowcount
+
+            result2 = await db.execute(
+                delete(UsageEventORM).where(UsageEventORM.created_at < cutoff)
+            )
+            deleted_events = result2.rowcount
+
+            await db.commit()
+            return {"archived_records": deleted_records, "archived_events": deleted_events}
+
+    return asyncio.run(_run())

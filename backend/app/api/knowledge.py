@@ -16,6 +16,7 @@ from app.api.auth import optional_current_user
 from app.core.tenant import resolve_org_id, assert_org_access
 from app.core.config import settings
 from app.services import rag_service
+from app.services.billing_service import check_knowledge_doc_limit
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -89,6 +90,7 @@ async def upload_document(
     current_user: dict | None = Depends(optional_current_user),
 ):
     org_id = resolve_org_id(current_user)
+    await check_knowledge_doc_limit(db, org_id)
     content = await file.read()
     checksum = hashlib.sha256(content).hexdigest()
 

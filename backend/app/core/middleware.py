@@ -126,16 +126,20 @@ class UsageTrackingMiddleware(BaseHTTPMiddleware):
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Simple in-memory rate limiter with Redis-ready placeholder.
+    """Org-aware rate limiter with Redis-ready placeholder.
 
+    Reads the per-org rate limit from organization_settings or plan defaults.
+    Falls back to a global default when the org cannot be resolved.
     Note: In-memory limiter is suitable for single-process development only.
     For production, configure Redis and replace counters with a centralized store.
     """
     def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
         super().__init__(app)
-        self.max_requests = max_requests
+        self.default_max_requests = max_requests
         self.window = window_seconds
         self._buckets: Dict[str, list[float]] = defaultdict(list)
+        self._rate_cache: Dict[str, int] = {}  # org_id -> max_requests, TTL 30s
+        self._cache_time: Dict[str, float] = {}
         # Redis client if configured
         self._redis = None
         if _HAS_AIREDIS and settings.REDIS_URL:
@@ -144,8 +148,37 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             except Exception:
                 self._redis = None
 
+    async def _get_org_limit(self, org_id: str) -> int:
+        """Fetch the org's rate limit, cached for 30 seconds."""
+        now = time.time()
+        cached = self._rate_cache.get(org_id)
+        cached_at = self._cache_time.get(org_id, 0)
+        if cached is not None and now - cached_at < 30:
+            return cached
+        try:
+            from app.db.database import SessionLocal
+            from app.services.billing_service import get_org_rate_limit
+            async with SessionLocal() as db:
+                limit = await get_org_rate_limit(db, org_id)
+            self._rate_cache[org_id] = limit
+            self._cache_time[org_id] = now
+            return limit
+        except Exception:
+            return self.default_max_requests
+
     async def dispatch(self, request: Request, call_next: Callable):
-        ident = request.client.host if request.client else "unknown"
+        if request.url.path in EXCLUDED_PATHS or request.method == "OPTIONS":
+            return await call_next(request)
+
+        user = getattr(request.state, "current_user", None)
+        org_id = (user or {}).get("organization_id") if user else None
+
+        # Only rate-limit authenticated requests with an org_id
+        if not org_id:
+            return await call_next(request)
+
+        ident = org_id
+        max_req = await self._get_org_limit(org_id)
 
         # Redis-backed fixed-window counter
         if self._redis:
@@ -154,22 +187,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 key = f"rl:{ident}:{current_window}"
                 cnt = await self._redis.incr(key)
                 if cnt == 1:
-                    # set expiry so key auto-expires after window
                     await self._redis.expire(key, int(self.window) + 1)
-                if cnt > self.max_requests:
-                    return JSONResponse(status_code=429, content={"error": "rate_limited"})
+                if cnt > max_req:
+                    return JSONResponse(status_code=429, content={"error": "rate_limit_exceeded", "limit": max_req, "window_seconds": self.window})
             except Exception:
-                # on redis errors, fallback to in-memory
                 pass
 
         # fallback in-memory sliding window
         now = time.time()
         window_start = now - self.window
         bucket = self._buckets[ident]
-        # purge old
         while bucket and bucket[0] < window_start:
             bucket.pop(0)
-        if len(bucket) >= self.max_requests:
-            return JSONResponse(status_code=429, content={"error": "rate_limited"})
+        if len(bucket) >= max_req:
+            return JSONResponse(status_code=429, content={"error": "rate_limit_exceeded", "limit": max_req, "window_seconds": self.window})
         bucket.append(now)
         return await call_next(request)
