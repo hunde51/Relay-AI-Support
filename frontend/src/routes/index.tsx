@@ -7,7 +7,7 @@ import { TicketsFeed } from "@/components/dashboard/TicketsFeed";
 import { AIActivityPanel } from "@/components/ai-panel/AIActivityPanel";
 import { useTickets } from "@/hooks/useTickets";
 import { useWSSubscription } from "@/hooks/useWSSubscription";
-import { useDashboardSummary, useRecentActivity, useTicketVolume } from "@/lib/queries";
+import { useDashboardSummary, useRecentActivity, useTicketVolume, useUsageSummary } from "@/lib/queries";
 import type { RecentActivity } from "@/lib/api/client";
 
 export const Route = createFileRoute("/")({
@@ -24,6 +24,7 @@ function Dashboard() {
   useWSSubscription("/ws/tickets");
   const { tickets, total, loading, error, refetch } = useTickets({ page_size: 25 });
   const { data: summary, isLoading: summaryLoading } = useDashboardSummary();
+  const { data: usage } = useUsageSummary();
   const { data: activity = [] } = useRecentActivity();
   const { data: volumeData = [] } = useTicketVolume();
   const volumeItems = volumeData.map((r: { day: string; count: number }) => ({ day: r.day.slice(5), count: r.count }));
@@ -54,6 +55,13 @@ function Dashboard() {
         <KpiCard index={1} label="Open tickets" value={summary?.open_tickets ?? 0} delta="" trend="down" loading={summaryLoading} icon={<Inbox className="h-4 w-4" />} />
         <KpiCard index={2} label="Resolved today" value={summary?.resolved_today ?? 0} delta="" trend="up" loading={summaryLoading} icon={<CheckCircle2 className="h-4 w-4" />} />
         <KpiCard index={3} label="Avg response" value={avgResponse} delta="" trend="up" loading={summaryLoading} icon={<Timer className="h-4 w-4" />} />
+      </section>
+
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard index={4} label="AI runs (month)" value={usage?.ai_runs_executed ?? 0} delta="" trend="up" loading={!usage} icon={<Activity className="h-4 w-4" />} />
+        <KpiCard index={5} label="API requests (month)" value={usage?.api_requests ?? 0} delta="" trend="up" loading={!usage} icon={<TrendingUp className="h-4 w-4" />} />
+        <KpiCard index={6} label="AI cost (month)" value={usage ? `$${usage.llm_cost_usd.toFixed(2)}` : "—"} delta="" trend="up" loading={!usage} icon={<Activity className="h-4 w-4" />} />
+        <KpiCard index={7} label="Knowledge chunks" value={usage?.knowledge_chunks ?? 0} delta="" trend="up" loading={!usage} icon={<Activity className="h-4 w-4" />} />
       </section>
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}

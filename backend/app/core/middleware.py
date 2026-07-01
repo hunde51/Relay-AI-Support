@@ -11,6 +11,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
 
+EXCLUDED_PATHS = {"/health", "/docs", "/redoc", "/openapi.json", "/metrics"}
+
 logger = logging.getLogger("app.http")
 
 try:
@@ -84,6 +86,42 @@ class StructuredLogMiddleware(BaseHTTPMiddleware):
             (user or {}).get("organization_id", "-"),
             (user or {}).get("user_id", "-"),
         )
+        return response
+
+
+class UsageTrackingMiddleware(BaseHTTPMiddleware):
+    """Count API requests per organization for usage accounting.
+
+    Must be registered *after* AuthMiddleware so that
+    ``request.state.current_user`` is populated before we inspect it.
+    Excludes health checks, docs, metrics, and OpenAPI schema paths.
+    """
+
+    async def dispatch(self, request: Request, call_next: Callable):
+        if request.url.path in EXCLUDED_PATHS or request.method == "OPTIONS":
+            return await call_next(request)
+
+        user = getattr(request.state, "current_user", None)
+        org_id = (user or {}).get("organization_id") if user else None
+        if not org_id:
+            return await call_next(request)
+
+        response = await call_next(request)
+
+        if response.status_code < 500:
+            try:
+                import asyncio
+                from app.db.database import SessionLocal
+                from app.services.usage_service import increment_api_requests
+
+                async def _track():
+                    async with SessionLocal() as db:
+                        await increment_api_requests(db, str(org_id))
+                        await db.commit()
+                asyncio.create_task(_track())
+            except Exception:
+                logger.warning("Failed to track API usage for org=%s path=%s", org_id, request.url.path)
+
         return response
 
 

@@ -44,3 +44,4 @@ from app.models.invitation import InvitationORM  # noqa: F401
 from app.models.audit import AuditLogORM, NotificationORM  # noqa: F401
 from app.models.webhook import WebhookEndpointORM, WebhookDeliveryORM  # noqa: F401
 from app.models.email import EmailIntegrationORM, EmailMessageORM  # noqa: F401
+from app.models.usage import UsageRecordORM, UsageEventORM  # noqa: F401
